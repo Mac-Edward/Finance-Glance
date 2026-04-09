@@ -1,250 +1,1987 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>AI Financial Statement Analyzer</title>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>FinSight Pro — Financial Document Analyzer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
 <style>
-body { font-family: Arial; background:#f4f6f9; text-align:center; }
-#dropZone {
-  border:2px dashed #3b82f6;
-  padding:40px;
-  margin:40px auto;
-  width:60%;
-  background:white;
+/* ═══════════════════════════════════════════════
+   DESIGN SYSTEM — Bloomberg Terminal Aesthetic
+═══════════════════════════════════════════════ */
+:root {
+  --bg-base:      #0a0c0f;
+  --bg-panel:     #0f1218;
+  --bg-card:      #141820;
+  --bg-elevated:  #1a2030;
+  --bg-hover:     #1e2535;
+  --border:       #1e2a3a;
+  --border-bright:#2a3a52;
+  --amber:        #f0a500;
+  --amber-dim:    #8a5e00;
+  --amber-glow:   rgba(240,165,0,0.08);
+  --green:        #00c875;
+  --green-dim:    #005c34;
+  --red:          #ff4d4d;
+  --red-dim:      #5c0000;
+  --blue:         #4da6ff;
+  --blue-dim:     #0a2a50;
+  --text-primary: #e8eaf0;
+  --text-secondary:#8a96aa;
+  --text-muted:   #4a5568;
+  --text-amber:   #f0a500;
+  --font-mono:    'IBM Plex Mono', monospace;
+  --font-sans:    'IBM Plex Sans', sans-serif;
+  --radius:       4px;
+  --radius-lg:    8px;
 }
-#dropZone.hover { background:#e0f2fe; }
-#output {
-  width:85%;
-  margin:auto;
-  background:white;
-  padding:20px;
-  text-align:left;
+ 
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+ 
+html { scroll-behavior: smooth; }
+ 
+body {
+  font-family: var(--font-sans);
+  background: var(--bg-base);
+  color: var(--text-primary);
+  min-height: 100vh;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+ 
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-panel); }
+::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 3px; }
+ 
+/* ── HEADER ── */
+header {
+  position: sticky; top: 0; z-index: 100;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  padding: 0 32px;
+  height: 52px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.header-left { display: flex; align-items: center; gap: 16px; }
+.logo-text {
+  font-family: var(--font-mono);
+  font-size: 15px; font-weight: 600;
+  color: var(--amber);
+  letter-spacing: 0.05em;
+}
+.logo-sub {
+  font-family: var(--font-mono);
+  font-size: 10px; color: var(--text-muted);
+  letter-spacing: 0.12em; text-transform: uppercase;
+}
+.header-tag {
+  font-family: var(--font-mono);
+  font-size: 10px; font-weight: 500;
+  padding: 3px 8px;
+  border: 1px solid var(--amber-dim);
+  color: var(--amber);
+  border-radius: 2px;
+  text-transform: uppercase; letter-spacing: 0.1em;
+}
+.header-right {
+  font-family: var(--font-mono);
+  font-size: 11px; color: var(--text-muted);
+  letter-spacing: 0.06em;
+}
+ 
+/* ── MAIN LAYOUT ── */
+main { max-width: 1280px; margin: 0 auto; padding: 32px 24px 80px; }
+ 
+/* ── SECTION TITLES ── */
+.section-header {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 16px;
+}
+.section-label {
+  font-family: var(--font-mono);
+  font-size: 10px; font-weight: 600;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--text-muted);
+}
+.section-line {
+  flex: 1; height: 1px;
+  background: linear-gradient(90deg, var(--border) 0%, transparent 100%);
+}
+.section-count {
+  font-family: var(--font-mono);
+  font-size: 10px; color: var(--amber);
+  background: var(--amber-glow);
+  padding: 2px 6px; border-radius: 2px;
+}
+ 
+/* ── UPLOAD ZONE ── */
+#upload-zone {
+  border: 1px dashed var(--border-bright);
+  border-radius: var(--radius-lg);
+  padding: 56px 32px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: var(--bg-panel);
+  position: relative;
+  overflow: hidden;
+}
+#upload-zone::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at 50% 120%, rgba(240,165,0,0.04) 0%, transparent 70%);
+  pointer-events: none;
+}
+#upload-zone:hover, #upload-zone.drag-over {
+  border-color: var(--amber);
+  background: var(--bg-card);
+}
+#upload-zone.drag-over { border-style: solid; }
+#upload-zone.drag-over::before {
+  background: radial-gradient(ellipse at 50% 120%, rgba(240,165,0,0.10) 0%, transparent 70%);
+}
+.upload-icon {
+  width: 52px; height: 52px;
+  margin: 0 auto 20px;
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius-lg);
+  display: flex; align-items: center; justify-content: center;
+  transition: border-color 0.2s;
+}
+#upload-zone:hover .upload-icon,
+#upload-zone.drag-over .upload-icon { border-color: var(--amber); }
+.upload-icon svg { width: 22px; height: 22px; stroke: var(--text-secondary); transition: stroke 0.2s; }
+#upload-zone:hover .upload-icon svg,
+#upload-zone.drag-over .upload-icon svg { stroke: var(--amber); }
+.upload-title {
+  font-family: var(--font-mono);
+  font-size: 14px; font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+  letter-spacing: 0.03em;
+}
+.upload-sub {
+  font-size: 12px; color: var(--text-secondary);
+  margin-bottom: 20px; line-height: 1.6;
+}
+.upload-types { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+.type-badge {
+  font-family: var(--font-mono);
+  font-size: 10px; font-weight: 600;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 2px; letter-spacing: 0.08em;
+}
+#file-input { display: none; }
+ 
+/* ── FILE QUEUE ── */
+#file-queue { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+.file-row {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  display: flex; align-items: center; gap: 10px;
+}
+.file-row-icon {
+  width: 28px; height: 28px;
+  background: var(--amber-glow);
+  border: 1px solid var(--amber-dim);
+  border-radius: var(--radius);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.file-row-icon svg { width: 13px; height: 13px; stroke: var(--amber); fill: none; stroke-width: 1.8; }
+.file-row-name { font-family: var(--font-mono); font-size: 12px; color: var(--text-primary); flex: 1; }
+.file-row-size { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
+.file-row-rm {
+  background: none; border: none; color: var(--text-muted);
+  cursor: pointer; font-size: 14px; padding: 2px 6px;
+  border-radius: var(--radius); transition: all 0.15s;
+}
+.file-row-rm:hover { color: var(--red); background: rgba(255,77,77,0.08); }
+ 
+/* ── ACTION BAR ── */
+#action-bar { display: none; margin-top: 16px; gap: 10px; align-items: center; }
+.btn-primary {
+  background: var(--amber);
+  color: #0a0c0f;
+  border: none; padding: 10px 28px;
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: 12px; font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  cursor: pointer; transition: all 0.15s;
+  display: flex; align-items: center; gap: 8px;
+}
+.btn-primary:hover { background: #ffc133; }
+.btn-primary:disabled { background: var(--amber-dim); cursor: not-allowed; color: #3a2800; }
+.btn-secondary {
+  background: none; border: 1px solid var(--border-bright);
+  color: var(--text-secondary); padding: 10px 20px;
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: 12px; cursor: pointer; transition: all 0.15s;
+  letter-spacing: 0.06em;
+}
+.btn-secondary:hover { border-color: var(--text-secondary); color: var(--text-primary); }
+ 
+/* ── STATUS / PROGRESS ── */
+#status-area { margin-top: 14px; }
+.status-bar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.status-bar.loading {
+  background: rgba(77,166,255,0.06);
+  border: 1px solid var(--blue-dim);
+  color: var(--blue);
+}
+.status-bar.error {
+  background: rgba(255,77,77,0.06);
+  border: 1px solid var(--red-dim);
+  color: var(--red);
+}
+.status-bar.success {
+  background: rgba(0,200,117,0.06);
+  border: 1px solid var(--green-dim);
+  color: var(--green);
+}
+.spinner {
+  width: 14px; height: 14px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+ 
+/* ── PROGRESS STEPS ── */
+#progress-steps {
+  display: none;
+  margin-top: 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.step-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 4px 0;
+  font-family: var(--font-mono); font-size: 11px;
+}
+.step-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  flex-shrink: 0; transition: background 0.3s;
+}
+.step-row.active .step-dot { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
+.step-row.done .step-dot { background: var(--green); }
+.step-row.active .step-label { color: var(--amber); }
+.step-row.done .step-label { color: var(--green); }
+.step-label { color: var(--text-muted); transition: color 0.3s; }
+ 
+/* ── RESULTS ── */
+#results { display: none; margin-top: 36px; }
+.results-topbar {
+  display: flex; align-items: flex-start;
+  justify-content: space-between; margin-bottom: 28px;
+  flex-wrap: wrap; gap: 12px;
+}
+.results-company {
+  font-family: var(--font-mono);
+  font-size: 22px; font-weight: 600;
+  color: var(--amber); letter-spacing: 0.02em;
+}
+.results-meta {
+  font-size: 12px; color: var(--text-secondary); margin-top: 4px;
+}
+.btn-reset {
+  font-family: var(--font-mono);
+  font-size: 11px; color: var(--text-muted);
+  background: none; border: 1px solid var(--border);
+  padding: 8px 16px; border-radius: var(--radius);
+  cursor: pointer; letter-spacing: 0.06em; text-transform: uppercase;
+  transition: all 0.15s;
+}
+.btn-reset:hover { border-color: var(--text-secondary); color: var(--text-primary); }
+ 
+/* ── KPI GRID ── */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  margin-bottom: 28px;
+}
+.kpi-cell {
+  background: var(--bg-card);
+  padding: 16px 18px;
+  position: relative;
+  transition: background 0.15s;
+}
+.kpi-cell:hover { background: var(--bg-hover); }
+.kpi-cell-label {
+  font-family: var(--font-mono);
+  font-size: 9px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.14em;
+  color: var(--text-muted); margin-bottom: 8px;
+}
+.kpi-cell-value {
+  font-family: var(--font-mono);
+  font-size: 22px; font-weight: 500;
+  color: var(--text-primary); line-height: 1;
+  margin-bottom: 6px;
+}
+.kpi-cell-value.positive { color: var(--green); }
+.kpi-cell-value.negative { color: var(--red); }
+.kpi-cell-value.amber { color: var(--amber); }
+.kpi-cell-sub {
+  font-family: var(--font-mono);
+  font-size: 10px; color: var(--text-muted); line-height: 1.4;
+}
+.kpi-cell-badge {
+  position: absolute; top: 10px; right: 10px;
+  font-family: var(--font-mono);
+  font-size: 9px; padding: 2px 5px;
+  border-radius: 2px; font-weight: 600; letter-spacing: 0.06em;
+}
+.badge-inferred {
+  background: rgba(240,165,0,0.1);
+  color: var(--amber); border: 1px solid var(--amber-dim);
+}
+.badge-extracted {
+  background: rgba(0,200,117,0.08);
+  color: var(--green); border: 1px solid var(--green-dim);
+}
+.badge-na {
+  background: rgba(138,150,170,0.1);
+  color: var(--text-muted); border: 1px solid var(--border);
+}
+ 
+/* ── EXTRACTED DATA TABLE ── */
+.data-table-wrap {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  margin-bottom: 28px;
+}
+.data-table {
+  width: 100%; border-collapse: collapse;
+}
+.data-table thead tr {
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border-bright);
+}
+.data-table th {
+  font-family: var(--font-mono);
+  font-size: 9px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.14em;
+  color: var(--text-muted); padding: 10px 16px;
+  text-align: left;
+}
+.data-table th:last-child { text-align: right; }
+.data-table tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+}
+.data-table tbody tr:last-child { border-bottom: none; }
+.data-table tbody tr:hover { background: var(--bg-hover); }
+.data-table td {
+  font-family: var(--font-mono);
+  font-size: 12px; padding: 9px 16px;
+  color: var(--text-secondary);
+}
+.data-table td:first-child { color: var(--text-primary); }
+.data-table td:last-child {
+  text-align: right; color: var(--text-primary); font-weight: 500;
+}
+.td-source {
+  font-size: 10px; color: var(--text-muted);
+  font-style: italic;
+}
+.td-positive { color: var(--green) !important; }
+.td-negative { color: var(--red) !important; }
+ 
+/* ── ANOMALIES ── */
+.anomaly-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 28px; }
+.anomaly-card {
+  background: var(--bg-card);
+  border-left: 3px solid transparent;
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  display: flex; gap: 14px; align-items: flex-start;
+}
+.anomaly-card.high { border-left-color: var(--red); background: rgba(255,77,77,0.04); }
+.anomaly-card.medium { border-left-color: var(--amber); background: rgba(240,165,0,0.04); }
+.anomaly-card.low { border-left-color: var(--blue); background: rgba(77,166,255,0.04); }
+.anomaly-severity {
+  font-family: var(--font-mono);
+  font-size: 9px; font-weight: 700;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  padding: 3px 7px; border-radius: 2px; flex-shrink: 0; margin-top: 1px;
+}
+.sev-high { background: rgba(255,77,77,0.15); color: var(--red); }
+.sev-medium { background: rgba(240,165,0,0.15); color: var(--amber); }
+.sev-low { background: rgba(77,166,255,0.15); color: var(--blue); }
+.anomaly-body {}
+.anomaly-title {
+  font-size: 13px; font-weight: 500;
+  color: var(--text-primary); margin-bottom: 3px;
+}
+.anomaly-desc { font-size: 12px; color: var(--text-secondary); line-height: 1.6; }
+.anomaly-explain {
+  margin-top: 5px; font-size: 11px;
+  color: var(--text-muted); font-style: italic;
+}
+ 
+/* ── INSIGHTS ── */
+.insights-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px; margin-bottom: 28px;
+}
+.insight-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px 18px;
+  position: relative; overflow: hidden;
+}
+.insight-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0;
+  width: 100%; height: 2px;
+}
+.insight-card.profitability::before { background: var(--amber); }
+.insight-card.efficiency::before { background: var(--blue); }
+.insight-card.risk::before { background: var(--red); }
+.insight-card.liquidity::before { background: var(--green); }
+.insight-card.investor::before { background: #a78bfa; }
+.insight-tag {
+  font-family: var(--font-mono);
+  font-size: 9px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.12em;
+  margin-bottom: 8px;
+}
+.tag-profitability { color: var(--amber); }
+.tag-efficiency { color: var(--blue); }
+.tag-risk { color: var(--red); }
+.tag-liquidity { color: var(--green); }
+.tag-investor { color: #a78bfa; }
+.insight-text {
+  font-size: 13px; color: var(--text-secondary);
+  line-height: 1.7;
+}
+ 
+/* ── BAR CHART ── */
+.chart-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px; margin-bottom: 28px;
+}
+.chart-title {
+  font-family: var(--font-mono);
+  font-size: 10px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.14em;
+  color: var(--text-muted); margin-bottom: 18px;
+}
+.bar-rows { display: flex; flex-direction: column; gap: 10px; }
+.bar-row { display: flex; align-items: center; gap: 12px; }
+.bar-name {
+  font-family: var(--font-mono);
+  font-size: 11px; color: var(--text-secondary);
+  width: 200px; flex-shrink: 0; text-align: right;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.bar-track {
+  flex: 1; height: 18px;
+  background: var(--bg-elevated);
+  border-radius: 2px; overflow: hidden;
+}
+.bar-fill {
+  height: 100%; border-radius: 2px;
+  display: flex; align-items: center;
+  justify-content: flex-end; padding-right: 8px;
+  font-family: var(--font-mono); font-size: 10px;
+  font-weight: 600; color: rgba(0,0,0,0.8);
+  transition: width 0.8s cubic-bezier(0.4,0,0.2,1);
+  min-width: 40px;
+}
+.bar-fill.c-amber { background: var(--amber); }
+.bar-fill.c-green { background: var(--green); }
+.bar-fill.c-blue { background: var(--blue); }
+.bar-fill.c-red { background: var(--red); }
+ 
+/* ── RAW TEXT PREVIEW ── */
+.raw-preview {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  font-family: var(--font-mono);
+  font-size: 11px; color: var(--text-muted);
+  line-height: 1.7; max-height: 220px;
+  overflow-y: auto; white-space: pre-wrap;
+  word-break: break-word; margin-bottom: 28px;
+}
+ 
+/* ── EMPTY / ERROR STATES ── */
+.empty-state {
+  text-align: center; padding: 40px 20px;
+  font-family: var(--font-mono);
+  font-size: 12px; color: var(--text-muted);
+}
+ 
+/* ── RESPONSIVE ── */
+@media (max-width: 700px) {
+  main { padding: 20px 14px 60px; }
+  header { padding: 0 16px; }
+  .kpi-grid { grid-template-columns: 1fr 1fr; }
+  .bar-name { width: 100px; }
+  .insights-grid { grid-template-columns: 1fr; }
 }
 </style>
 </head>
-
 <body>
-
-<h1>AI Financial Analyzer</h1>
-<div id="dropZone">Drop ANY Financial File (PDF, CSV, TXT)</div>
-
-<div id="output">
-  <h2>Analysis</h2>
-  <div id="results"></div>
-</div>
-
+ 
+<!-- ═══ HEADER ═══ -->
+<header>
+  <div class="header-left">
+    <div>
+      <div class="logo-text">FINSIGHT PRO</div>
+      <div class="logo-sub">Financial Intelligence Platform</div>
+    </div>
+    <span class="header-tag">v2.0</span>
+  </div>
+  <div class="header-right" id="header-clock">LOADING...</div>
+</header>
+ 
+<!-- ═══ MAIN ═══ -->
+<main>
+ 
+  <!-- UPLOAD -->
+  <div id="upload-zone" onclick="document.getElementById('file-input').click()">
+    <div class="upload-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/>
+        <path d="M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3"/>
+      </svg>
+    </div>
+    <div class="upload-title">DROP FINANCIAL DOCUMENTS HERE</div>
+    <div class="upload-sub">
+      Drag & drop income statements, balance sheets, cash flow statements, or any financial report<br/>
+      for instant KPI extraction, anomaly detection, and investment-grade analysis
+    </div>
+    <div class="upload-types">
+      <span class="type-badge">PDF</span>
+      <span class="type-badge">CSV</span>
+      <span class="type-badge">TXT</span>
+      <span class="type-badge">MULTI-PAGE</span>
+    </div>
+  </div>
+  <input type="file" id="file-input" multiple accept=".pdf,.csv,.txt,.text"/>
+ 
+  <div id="file-queue"></div>
+ 
+  <div id="action-bar">
+    <button class="btn-primary" id="btn-run" onclick="runPipeline()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+      RUN ANALYSIS
+    </button>
+    <button class="btn-secondary" onclick="clearAll()">CLEAR</button>
+  </div>
+ 
+  <div id="status-area"></div>
+ 
+  <div id="progress-steps">
+    <div class="step-row" id="step-0"><div class="step-dot"></div><span class="step-label">Reading & decoding file content</span></div>
+    <div class="step-row" id="step-1"><div class="step-dot"></div><span class="step-label">Extracting text from pages</span></div>
+    <div class="step-row" id="step-2"><div class="step-dot"></div><span class="step-label">Parsing financial line items</span></div>
+    <div class="step-row" id="step-3"><div class="step-dot"></div><span class="step-label">Normalizing & deduplicating data</span></div>
+    <div class="step-row" id="step-4"><div class="step-dot"></div><span class="step-label">Computing KPIs & ratios</span></div>
+    <div class="step-row" id="step-5"><div class="step-dot"></div><span class="step-label">Running anomaly detection</span></div>
+    <div class="step-row" id="step-6"><div class="step-dot"></div><span class="step-label">Generating insights</span></div>
+  </div>
+ 
+  <!-- RESULTS -->
+  <div id="results">
+ 
+    <div class="results-topbar">
+      <div>
+        <div class="results-company" id="res-company">FINANCIAL ANALYSIS</div>
+        <div class="results-meta" id="res-meta"></div>
+      </div>
+      <button class="btn-reset" onclick="resetAll()">&#8592; NEW ANALYSIS</button>
+    </div>
+ 
+    <!-- KPI DASHBOARD -->
+    <div class="section-header">
+      <span class="section-label">KPI Dashboard</span>
+      <div class="section-line"></div>
+    </div>
+    <div class="kpi-grid" id="kpi-grid"></div>
+ 
+    <!-- MARGIN CHART -->
+    <div class="section-header">
+      <span class="section-label">Margin & Ratio Breakdown</span>
+      <div class="section-line"></div>
+    </div>
+    <div class="chart-section" id="chart-section">
+      <div class="chart-title">KEY METRICS — VISUAL COMPARISON</div>
+      <div class="bar-rows" id="bar-rows"></div>
+    </div>
+ 
+    <!-- EXTRACTED DATA -->
+    <div class="section-header">
+      <span class="section-label">Extracted Financial Data</span>
+      <div class="section-line"></div>
+      <span class="section-count" id="data-count">0 items</span>
+    </div>
+    <div class="data-table-wrap">
+      <table class="data-table">
+        <thead><tr>
+          <th>LINE ITEM</th>
+          <th>CATEGORY</th>
+          <th>SOURCE LINE</th>
+          <th>VALUE (USD)</th>
+        </tr></thead>
+        <tbody id="data-tbody"></tbody>
+      </table>
+    </div>
+ 
+    <!-- ANOMALIES -->
+    <div class="section-header">
+      <span class="section-label">Anomalies & Red Flags</span>
+      <div class="section-line"></div>
+      <span class="section-count" id="anomaly-count">0</span>
+    </div>
+    <div class="anomaly-list" id="anomaly-list"></div>
+ 
+    <!-- INSIGHTS -->
+    <div class="section-header">
+      <span class="section-label">Investment-Grade Insights</span>
+      <div class="section-line"></div>
+    </div>
+    <div class="insights-grid" id="insights-grid"></div>
+ 
+    <!-- RAW TEXT -->
+    <div class="section-header">
+      <span class="section-label">Extracted Raw Text (Preview)</span>
+      <div class="section-line"></div>
+    </div>
+    <div class="raw-preview" id="raw-preview"></div>
+ 
+  </div><!-- /results -->
+ 
+</main>
+ 
+<!-- PDF.js CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
-const dropZone = document.getElementById("dropZone");
-const resultsDiv = document.getElementById("results");
-
-// ---------------- DRAG DROP ----------------
-dropZone.addEventListener("dragover", e=>{
-  e.preventDefault(); dropZone.classList.add("hover");
-});
-dropZone.addEventListener("dragleave", ()=>dropZone.classList.remove("hover"));
-
-dropZone.addEventListener("drop", e=>{
+// ══════════════════════════════════════════════════════════════════
+//  FINSIGHT PRO — Core Engine
+//  Sections:
+//   1. UI Utilities
+//   2. File Handling
+//   3. PDF Extractor
+//   4. Text/CSV Parser
+//   5. Financial Pattern Matcher
+//   6. Data Normalizer
+//   7. KPI Engine
+//   8. Anomaly Detector
+//   9. Insight Generator
+//  10. Renderer
+//  11. Pipeline Orchestrator
+// ══════════════════════════════════════════════════════════════════
+ 
+// Configure PDF.js worker
+if (typeof pdfjsLib !== 'undefined') {
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+ 
+/* ── 1. UI UTILITIES ── */
+ 
+// Live clock in header
+(function clockTick() {
+  const el = document.getElementById('header-clock');
+  const now = new Date();
+  el.textContent = now.toLocaleString('en-US', {
+    month: 'short', day: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+  }).replace(',','').toUpperCase();
+  setTimeout(clockTick, 1000);
+})();
+ 
+function setStatus(msg, type) {
+  const area = document.getElementById('status-area');
+  if (!msg) { area.innerHTML = ''; return; }
+  area.innerHTML = `<div class="status-bar ${type}">
+    ${type === 'loading' ? '<div class="spinner"></div>' : ''}
+    <span>${msg}</span>
+  </div>`;
+}
+ 
+function setStep(idx, state) {
+  // state: 'active' | 'done'
+  const el = document.getElementById('step-' + idx);
+  if (!el) return;
+  el.className = 'step-row ' + state;
+}
+ 
+function fmt(n) {
+  // Format number: millions/billions, commas
+  if (n === null || n === undefined || isNaN(n)) return 'N/A';
+  const abs = Math.abs(n);
+  if (abs >= 1e9) return (n < 0 ? '-' : '') + '$' + (abs / 1e9).toFixed(2) + 'B';
+  if (abs >= 1e6) return (n < 0 ? '-' : '') + '$' + (abs / 1e6).toFixed(1) + 'M';
+  if (abs >= 1e3) return (n < 0 ? '-' : '') + '$' + (abs / 1e3).toFixed(1) + 'K';
+  return (n < 0 ? '-$' : '$') + Math.abs(n).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+ 
+function pct(n) {
+  if (n === null || n === undefined || isNaN(n)) return 'N/A';
+  return (n >= 0 ? '' : '') + n.toFixed(1) + '%';
+}
+ 
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = String(s);
+  return d.innerHTML;
+}
+ 
+/* ── 2. FILE HANDLING ── */
+ 
+let uploadedFiles = [];
+ 
+const dropZone = document.getElementById('upload-zone');
+const fileInput = document.getElementById('file-input');
+ 
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
   e.preventDefault();
-  dropZone.classList.remove("hover");
-
-  const file = e.dataTransfer.files[0];
-  if(!file) return;
-
-  resultsDiv.innerHTML = "Processing...";
-
-  if(file.type === "application/pdf") handlePDF(file);
-  else handleText(file);
+  dropZone.classList.remove('drag-over');
+  addFiles(e.dataTransfer.files);
 });
-
-// ---------------- FILE HANDLING ----------------
-async function handlePDF(file){
-  const reader = new FileReader();
-  reader.onload = async function(e){
-    const pdf = await pdfjsLib.getDocument(new Uint8Array(e.target.result)).promise;
-    let lines=[];
-
-    for(let i=1;i<=pdf.numPages;i++){
-      const page = await pdf.getPage(i);
-      const content = await page.getTextContent();
-
-      let map={};
-      content.items.forEach(item=>{
-        const y = Math.round(item.transform[5]);
-        if(!map[y]) map[y]=[];
-        map[y].push(item.str);
-      });
-
-      Object.values(map).forEach(arr=>{
-        lines.push(arr.join(" "));
-      });
+fileInput.addEventListener('change', () => addFiles(fileInput.files));
+ 
+function addFiles(files) {
+  for (const f of files) {
+    const ext = f.name.split('.').pop().toLowerCase();
+    if (!['pdf','csv','txt','text'].includes(ext)) {
+      setStatus(`Unsupported file type: ${f.name}`, 'error');
+      continue;
     }
-
-    analyze(lines);
-  };
-  reader.readAsArrayBuffer(file);
-}
-
-function handleText(file){
-  const reader = new FileReader();
-  reader.onload = e=>{
-    const lines = e.target.result.split("\n");
-    analyze(lines);
-  };
-  reader.readAsText(file);
-}
-
-// ---------------- EXTRACTION ENGINE ----------------
-function analyze(lines){
-  const data = extractFinancials(lines);
-
-  if(Object.keys(data).length===0){
-    resultsDiv.innerHTML = "<b>No usable financial data detected.</b>";
-    return;
+    if (!uploadedFiles.find(x => x.name === f.name && x.size === f.size)) {
+      uploadedFiles.push(f);
+    }
   }
-
-  const kpis = computeKPIs(data);
-  const anomalies = detectAnomalies(data, kpis);
-  const insights = generateInsights(data, kpis, anomalies);
-
-  render(data, kpis, anomalies, insights);
+  renderQueue();
 }
-
-// ---------------- SMART EXTRACTION ----------------
-function extractFinancials(lines){
-  const patterns = {
-    revenue: /revenue|sales/i,
-    cogs: /cost of goods|cogs/i,
-    opex: /operating expense/i,
-    netIncome: /net income|profit/i,
-    ebitda: /ebitda/i,
-    assets: /total assets/i,
-    liabilities: /total liabilities/i,
-    equity: /equity/i
-  };
-
-  let data={};
-
-  lines.forEach(line=>{
-    const num = extractNumber(line);
-    if(num===null) return;
-
-    for(let key in patterns){
-      if(patterns[key].test(line)){
-        data[key]=num;
-      }
-    }
+ 
+function renderQueue() {
+  const q = document.getElementById('file-queue');
+  q.innerHTML = '';
+  uploadedFiles.forEach((f, i) => {
+    const sz = f.size < 1024 ? f.size + ' B'
+             : f.size < 1048576 ? (f.size/1024).toFixed(1) + ' KB'
+             : (f.size/1048576).toFixed(1) + ' MB';
+    const row = document.createElement('div');
+    row.className = 'file-row';
+    row.innerHTML = `
+      <div class="file-row-icon">
+        <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+        </svg>
+      </div>
+      <div class="file-row-name">${esc(f.name)}</div>
+      <div class="file-row-size">${sz}</div>
+      <button class="file-row-rm" onclick="removeFile(${i})">&#10005;</button>
+    `;
+    q.appendChild(row);
   });
-
+  const bar = document.getElementById('action-bar');
+  bar.style.display = uploadedFiles.length ? 'flex' : 'none';
+}
+ 
+function removeFile(i) { uploadedFiles.splice(i, 1); renderQueue(); }
+function clearAll() { uploadedFiles = []; fileInput.value = ''; renderQueue(); setStatus('', ''); }
+ 
+/* ── 3. PDF EXTRACTOR ── */
+ 
+async function extractPDF(file) {
+  // Returns reconstructed text from all pages using positional data
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const pdf = await pdfjsLib.getDocument({ data }).promise;
+        const numPages = pdf.numPages;
+        let allText = '';
+ 
+        for (let p = 1; p <= numPages; p++) {
+          const page = await pdf.getPage(p);
+          const content = await page.getTextContent();
+ 
+          // Group text items by approximate y-position to reconstruct lines
+          const lines = {};
+          for (const item of content.items) {
+            if (!item.str || item.str.trim() === '') continue;
+            // Round y to nearest 5px bucket to group items on same line
+            const y = Math.round(item.transform[5] / 5) * 5;
+            if (!lines[y]) lines[y] = [];
+            lines[y].push({ x: item.transform[4], text: item.str });
+          }
+ 
+          // Sort lines top-to-bottom (higher y = higher on page in PDF coords)
+          const sortedYs = Object.keys(lines).map(Number).sort((a, b) => b - a);
+          for (const y of sortedYs) {
+            // Sort items left-to-right within each line
+            const sorted = lines[y].sort((a, b) => a.x - b.x);
+            const lineText = sorted.map(i => i.text).join(' ').trim();
+            if (lineText) allText += lineText + '\n';
+          }
+          allText += '\n'; // page break
+        }
+        resolve(allText);
+      } catch (err) {
+        reject(new Error('PDF parse error: ' + err.message));
+      }
+    };
+    reader.onerror = () => reject(new Error('Could not read file'));
+    reader.readAsArrayBuffer(file);
+  });
+}
+ 
+/* ── 4. TEXT/CSV READER ── */
+ 
+async function readTextFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      let text = e.target.result;
+      // Normalize line endings
+      text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      // For CSV: replace tabs and multiple commas with spaces for line parsing,
+      // but keep original for value extraction
+      resolve(text);
+    };
+    reader.onerror = () => reject(new Error('Cannot read text file'));
+    reader.readAsText(file);
+  });
+}
+ 
+/* ── 5. FINANCIAL PATTERN MATCHER ── */
+ 
+// Comprehensive regex patterns for financial line items
+// Each entry: { canonical, patterns[], category }
+const FINANCIAL_PATTERNS = [
+  // ── INCOME STATEMENT ──
+  {
+    canonical: 'Revenue',
+    category: 'Income Statement',
+    patterns: [
+      /\b(total\s+)?(?:net\s+)?(?:sales?|revenues?|turnover|income\s+from\s+operations?|net\s+sales?)\b/i,
+      /\b(?:gross\s+)?revenues?\b/i,
+    ]
+  },
+  {
+    canonical: 'Cost of Goods Sold',
+    category: 'Income Statement',
+    patterns: [
+      /\b(?:cost\s+of\s+(?:goods\s+)?(?:sold|revenue|sales|services?)|cogs?|cost\s+of\s+products?)\b/i,
+      /\b(?:direct\s+costs?|cost\s+of\s+revenues?|cost\s+of\s+sales?)\b/i,
+    ]
+  },
+  {
+    canonical: 'Gross Profit',
+    category: 'Income Statement',
+    patterns: [ /\bgross\s+(?:profit|margin|income)\b/i ]
+  },
+  {
+    canonical: 'Operating Expenses',
+    category: 'Income Statement',
+    patterns: [
+      /\b(?:total\s+)?(?:operating\s+(?:expenses?|costs?|expenditures?))\b/i,
+      /\b(?:sg&a|selling[\s,]+general\s+(?:and\s+)?administrative)\b/i,
+      /\b(?:opex|operational\s+expenses?)\b/i,
+    ]
+  },
+  {
+    canonical: 'R&D Expenses',
+    category: 'Income Statement',
+    patterns: [ /\b(?:research\s+(?:and\s+)?development|r\s*&\s*d)\s*(?:expenses?|costs?|expenditures?)?\b/i ]
+  },
+  {
+    canonical: 'Depreciation & Amortization',
+    category: 'Income Statement',
+    patterns: [ /\b(?:depreciation(?:\s+(?:and|&)\s+amortization)?|d\s*&\s*a|amortization)\b/i ]
+  },
+  {
+    canonical: 'EBITDA',
+    category: 'Income Statement',
+    patterns: [ /\bebitda\b/i, /\bearnings?\s+before\s+interest.*tax.*depreciation/i ]
+  },
+  {
+    canonical: 'EBIT',
+    category: 'Income Statement',
+    patterns: [ /\bebit\b(?!da)/i, /\bearnings?\s+before\s+interest\s+(?:and\s+)?taxes?\b/i ]
+  },
+  {
+    canonical: 'Operating Income',
+    category: 'Income Statement',
+    patterns: [
+      /\b(?:operating\s+(?:income|profit|earnings?)|income\s+from\s+operations?)\b/i
+    ]
+  },
+  {
+    canonical: 'Interest Expense',
+    category: 'Income Statement',
+    patterns: [ /\binterest\s+(?:expense|charges?|cost)\b/i ]
+  },
+  {
+    canonical: 'Pre-Tax Income',
+    category: 'Income Statement',
+    patterns: [
+      /\b(?:(?:income|earnings?|profit)\s+before\s+(?:income\s+)?taxes?|pre[-\s]?tax\s+(?:income|profit))\b/i,
+      /\b(?:ebt|earnings?\s+before\s+tax)\b/i
+    ]
+  },
+  {
+    canonical: 'Tax Expense',
+    category: 'Income Statement',
+    patterns: [ /\b(?:(?:provision\s+for\s+)?income\s+taxes?|tax\s+(?:expense|provision))\b/i ]
+  },
+  {
+    canonical: 'Net Income',
+    category: 'Income Statement',
+    patterns: [
+      /\b(?:net\s+(?:income|profit|earnings?|loss)|net\s+income\s+(?:attributable|available))\b/i,
+      /\b(?:profit|earnings?)\s+(?:attributable\s+to|for\s+the\s+(?:year|period))\b/i,
+    ]
+  },
+  // ── BALANCE SHEET ──
+  {
+    canonical: 'Total Assets',
+    category: 'Balance Sheet',
+    patterns: [ /\btotal\s+assets?\b/i ]
+  },
+  {
+    canonical: 'Current Assets',
+    category: 'Balance Sheet',
+    patterns: [ /\b(?:total\s+)?current\s+assets?\b/i ]
+  },
+  {
+    canonical: 'Cash & Equivalents',
+    category: 'Balance Sheet',
+    patterns: [ /\bcash\s+(?:and\s+(?:cash\s+)?equivalents?|&\s*equivalents?)\b/i, /\bcash\s+on\s+hand\b/i ]
+  },
+  {
+    canonical: 'Accounts Receivable',
+    category: 'Balance Sheet',
+    patterns: [ /\b(?:(?:trade\s+)?accounts?\s+receivable|trade\s+debtors?|receivables?\s+(?:net|gross)?)\b/i ]
+  },
+  {
+    canonical: 'Inventory',
+    category: 'Balance Sheet',
+    patterns: [ /\binventor(?:y|ies)\b/i, /\bstock(?:\s+on\s+hand)?\b/i ]
+  },
+  {
+    canonical: 'Current Liabilities',
+    category: 'Balance Sheet',
+    patterns: [ /\b(?:total\s+)?current\s+liabilit(?:y|ies)\b/i ]
+  },
+  {
+    canonical: 'Total Liabilities',
+    category: 'Balance Sheet',
+    patterns: [ /\btotal\s+liabilit(?:y|ies)\b/i ]
+  },
+  {
+    canonical: "Shareholders' Equity",
+    category: 'Balance Sheet',
+    patterns: [
+      /\b(?:total\s+)?(?:shareholders?'?|stockholders?'?|owners?'?)\s+equity\b/i,
+      /\b(?:total\s+)?equity\b/i,
+      /\bnet\s+assets?\b/i
+    ]
+  },
+  {
+    canonical: 'Total Debt',
+    category: 'Balance Sheet',
+    patterns: [
+      /\b(?:total\s+)?(?:long[-\s]?term\s+debt|notes?\s+payable|borrowings?|total\s+debt|debt\s+outstanding)\b/i
+    ]
+  },
+  // ── CASH FLOW ──
+  {
+    canonical: 'Operating Cash Flow',
+    category: 'Cash Flow',
+    patterns: [
+      /\b(?:(?:net\s+)?cash\s+(?:provided\s+by|from)\s+operating|operating\s+cash\s+flow|cfo)\b/i
+    ]
+  },
+  {
+    canonical: 'Capital Expenditures',
+    category: 'Cash Flow',
+    patterns: [
+      /\b(?:capital\s+expenditures?|capex|purchase\s+of\s+(?:property|p\s*p\s*&\s*e|equipment)|additions?\s+to\s+(?:property|assets?))\b/i
+    ]
+  },
+  {
+    canonical: 'Free Cash Flow',
+    category: 'Cash Flow',
+    patterns: [ /\bfree\s+cash\s+flow\b/i, /\bfcf\b/i ]
+  },
+];
+ 
+// Regex to extract numeric values (handles $, commas, parentheses for negatives, M/B suffixes)
+const NUM_REGEX = /\(?[\$£€]?\s*([\d,]+(?:\.\d+)?)\s*([MBK])?\)?(?:\s*(million|billion|thousand))?/i;
+ 
+function parseNumericValue(raw) {
+  // Returns a number or null
+  // Handle parentheses as negative: (1,234) → -1234
+  const isNeg = /\([\d,.\$£€\s]+\)/.test(raw) || /^-/.test(raw.trim());
+  const m = raw.match(/[\d,]+(?:\.\d+)?/);
+  if (!m) return null;
+  let val = parseFloat(m[0].replace(/,/g, ''));
+  if (isNaN(val)) return null;
+ 
+  // Handle M/B/K suffixes
+  if (/\bB\b|billion/i.test(raw)) val *= 1e9;
+  else if (/\bM\b|million/i.test(raw)) val *= 1e6;
+  else if (/\bK\b|thousand/i.test(raw)) val *= 1e3;
+ 
+  // Heuristic: if value looks like it's in millions (common in annual reports)
+  // We don't auto-scale — user's document should be consistent
+  return isNeg ? -val : val;
+}
+ 
+function hasFinancialContent(text) {
+  // Quick check if a block of text contains financial data
+  const signals = [
+    /\d[\d,]*\.?\d*\s*(?:million|billion|thousand|M\b|B\b)/i,
+    /\$\s*[\d,]+/,
+    /\b(?:revenue|income|profit|loss|assets?|liabilit)/i,
+    /\b(?:ebitda|ebit|cogs?|opex|fcf)\b/i,
+    /total\s+(?:assets?|revenue|income)/i,
+  ];
+  return signals.some(r => r.test(text));
+}
+ 
+/* ── 5b. LINE-LEVEL PARSER ── */
+ 
+function extractFinancialItems(rawText) {
+  /*
+    Returns array of: { canonical, category, rawLine, rawValue, value }
+  */
+  const results = [];
+  const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
+ 
+  for (const line of lines) {
+    // Skip very short lines or lines that are likely headers/page numbers
+    if (line.length < 3) continue;
+    if (/^\d+$/.test(line)) continue; // pure page numbers
+ 
+    for (const pattern of FINANCIAL_PATTERNS) {
+      const matched = pattern.patterns.some(rx => rx.test(line));
+      if (!matched) continue;
+ 
+      // Try to extract a number from this line or a nearby continuation
+      // Priority: find largest numeric-looking token on the line
+      // Remove the matched label text, then parse remaining
+      const numMatches = line.match(/\(?\$?[\d,]+(?:\.\d+)?\s*[BMK]?\)?(?:\s+(?:million|billion|thousand))?/gi);
+      if (!numMatches || numMatches.length === 0) continue;
+ 
+      // Take the last number on the line (usually the value in financial tables)
+      let rawValue = numMatches[numMatches.length - 1];
+      // But also check if there are parentheses around it for negative
+      const parenMatch = line.match(/\([\$£€]?\s*[\d,]+(?:\.\d+)?\s*[BMK]?\)/);
+      if (parenMatch) rawValue = parenMatch[0];
+ 
+      const value = parseNumericValue(rawValue);
+      if (value === null || value === 0) continue;
+ 
+      // Avoid duplicate canonical entries — keep the first occurrence
+      const exists = results.find(r => r.canonical === pattern.canonical);
+      if (exists) continue;
+ 
+      results.push({
+        canonical: pattern.canonical,
+        category: pattern.category,
+        rawLine: line.substring(0, 120),
+        rawValue: rawValue.trim(),
+        value
+      });
+      break; // once matched, move to next line
+    }
+  }
+  return results;
+}
+ 
+/* ── 6. DATA NORMALIZER ── */
+ 
+function normalizeData(items) {
+  /*
+    Builds a structured object from extracted items.
+    Handles potential unit scaling (all-millions documents).
+  */
+ 
+  // Detect if values might be in millions (common in 10-K/annual reports)
+  // Heuristic: if "in millions" appears in text, values need *1e6 scaling
+  // We skip auto-scaling here since the PDF extractor should capture the number as-written.
+ 
+  const data = {};
+  for (const item of items) {
+    // Use canonical name as key
+    const key = item.canonical;
+    if (!data[key]) {
+      data[key] = {
+        value: item.value,
+        rawLine: item.rawLine,
+        category: item.category,
+        confidence: 'extracted'
+      };
+    }
+  }
+ 
+  // Derive missing values from existing ones
+  // Gross Profit = Revenue - COGS
+  if (!data['Gross Profit'] && data['Revenue'] && data['Cost of Goods Sold']) {
+    data['Gross Profit'] = {
+      value: data['Revenue'].value - data['Cost of Goods Sold'].value,
+      rawLine: 'Derived: Revenue - COGS',
+      category: 'Income Statement',
+      confidence: 'derived'
+    };
+  }
+ 
+  // Operating Income = Gross Profit - Operating Expenses
+  if (!data['Operating Income'] && data['Gross Profit'] && data['Operating Expenses']) {
+    data['Operating Income'] = {
+      value: data['Gross Profit'].value - data['Operating Expenses'].value,
+      rawLine: 'Derived: Gross Profit - OpEx',
+      category: 'Income Statement',
+      confidence: 'derived'
+    };
+  }
+ 
+  // EBITDA = Operating Income + D&A
+  if (!data['EBITDA']) {
+    if (data['Operating Income'] && data['Depreciation & Amortization']) {
+      data['EBITDA'] = {
+        value: data['Operating Income'].value + Math.abs(data['Depreciation & Amortization'].value),
+        rawLine: 'Derived: Operating Income + D&A',
+        category: 'Income Statement',
+        confidence: 'derived'
+      };
+    } else if (data['Revenue'] && data['Cost of Goods Sold'] && data['Operating Expenses']) {
+      data['EBITDA'] = {
+        value: data['Revenue'].value - data['Cost of Goods Sold'].value - data['Operating Expenses'].value,
+        rawLine: 'Derived: Revenue - COGS - OpEx',
+        category: 'Income Statement',
+        confidence: 'derived'
+      };
+    }
+  }
+ 
+  // Free Cash Flow = Operating Cash Flow - CapEx
+  if (!data['Free Cash Flow'] && data['Operating Cash Flow'] && data['Capital Expenditures']) {
+    data['Free Cash Flow'] = {
+      value: data['Operating Cash Flow'].value - Math.abs(data['Capital Expenditures'].value),
+      rawLine: 'Derived: OCF - CapEx',
+      category: 'Cash Flow',
+      confidence: 'derived'
+    };
+  }
+ 
   return data;
 }
-
-// ---------------- NUMBER PARSER ----------------
-function extractNumber(text){
-  const match = text.match(/-?\$?\(?\d{1,3}(,\d{3})*(\.\d+)?\)?/);
-  if(!match) return null;
-
-  let n = match[0]
-    .replace(/[$,]/g,"")
-    .replace("(","-")
-    .replace(")","");
-
-  return parseFloat(n);
-}
-
-// ---------------- KPI ENGINE ----------------
-function computeKPIs(d){
-  const revenue = d.revenue||0;
-  const cogs = d.cogs||0;
-  const opex = d.opex||0;
-
-  const grossProfit = revenue - cogs;
-  const ebitda = d.ebitda || (grossProfit - opex);
-  const netIncome = d.netIncome || (ebitda);
-
-  return {
-    revenue,
-    grossProfit,
-    ebitda,
-    netIncome,
-    grossMargin: revenue ? (grossProfit/revenue)*100 : 0,
-    ebitdaMargin: revenue ? (ebitda/revenue)*100 : 0,
-    netMargin: revenue ? (netIncome/revenue)*100 : 0
-  };
-}
-
-// ---------------- ANOMALY DETECTION ----------------
-function detectAnomalies(d,k){
-  let issues=[];
-
-  if(k.grossMargin < 0)
-    issues.push("Negative gross margin → possible pricing or cost issue");
-
-  if(k.ebitdaMargin > 60)
-    issues.push("Unusually high EBITDA margin");
-
-  if(k.netMargin < 0)
-    issues.push("Company is losing money");
-
-  if(d.assets && d.liabilities && d.liabilities > d.assets)
-    issues.push("Liabilities exceed assets → solvency risk");
-
-  if(k.revenue && k.ebitda > k.revenue)
-    issues.push("EBITDA exceeds revenue → data inconsistency");
-
-  return issues;
-}
-
-// ---------------- INSIGHT GENERATION ----------------
-function generateInsights(d,k,issues){
-  let insights=[];
-
-  if(k.ebitdaMargin > 25)
-    insights.push("Strong operational profitability");
-
-  if(k.netMargin < 10)
-    insights.push("Low bottom-line efficiency");
-
-  if(issues.length>0)
-    insights.push("Financial irregularities detected requiring review");
-
-  if(d.assets && d.liabilities){
-    if(d.assets > d.liabilities)
-      insights.push("Balance sheet appears stable");
-    else
-      insights.push("Balance sheet risk detected");
+ 
+/* ── 7. KPI ENGINE ── */
+ 
+function computeKPIs(data) {
+  const kpis = [];
+  const get = (key) => data[key]?.value ?? null;
+ 
+  const rev = get('Revenue');
+  const cogs = get('Cost of Goods Sold');
+  const gp = get('Gross Profit');
+  const opex = get('Operating Expenses');
+  const ebitda = get('EBITDA');
+  const ebit = get('EBIT') ?? get('Operating Income');
+  const ni = get('Net Income');
+  const da = get('Depreciation & Amortization');
+  const assets = get('Total Assets');
+  const curAssets = get('Current Assets');
+  const curLiab = get('Current Liabilities');
+  const equity = get('Shareholders\' Equity');
+  const debt = get('Total Debt');
+  const ocf = get('Operating Cash Flow');
+  const capex = get('Capital Expenditures');
+  const fcf = get('Free Cash Flow');
+  const tax = get('Tax Expense');
+  const interest = get('Interest Expense');
+  const pretax = get('Pre-Tax Income');
+ 
+  // ── PROFITABILITY ──
+ 
+  if (rev && rev !== 0) {
+    if (gp !== null) {
+      kpis.push({
+        label: 'Gross Margin',
+        value: pct((gp / rev) * 100),
+        rawNum: (gp / rev) * 100,
+        sub: `GP: ${fmt(gp)} / Rev: ${fmt(rev)}`,
+        badge: 'extracted',
+        type: 'margin',
+        thresholds: { good: 40, warn: 20 }
+      });
+    }
+    if (ebitda !== null) {
+      const m = (ebitda / rev) * 100;
+      kpis.push({
+        label: 'EBITDA Margin',
+        value: pct(m),
+        rawNum: m,
+        sub: `EBITDA: ${fmt(ebitda)} / Rev: ${fmt(rev)}`,
+        badge: data['EBITDA']?.confidence === 'derived' ? 'inferred' : 'extracted',
+        type: 'margin',
+        thresholds: { good: 20, warn: 10 }
+      });
+    }
+    if (ni !== null) {
+      const m = (ni / rev) * 100;
+      kpis.push({
+        label: 'Net Profit Margin',
+        value: pct(m),
+        rawNum: m,
+        sub: `NI: ${fmt(ni)} / Rev: ${fmt(rev)}`,
+        badge: 'extracted',
+        type: 'margin',
+        thresholds: { good: 10, warn: 5 }
+      });
+    }
+    if (ebit !== null) {
+      const m = (ebit / rev) * 100;
+      kpis.push({
+        label: 'Operating Margin',
+        value: pct(m),
+        rawNum: m,
+        sub: `EBIT: ${fmt(ebit)} / Rev: ${fmt(rev)}`,
+        badge: 'extracted',
+        type: 'margin',
+        thresholds: { good: 15, warn: 8 }
+      });
+    }
+    if (cogs !== null) {
+      kpis.push({
+        label: 'Cost Ratio',
+        value: pct((cogs / rev) * 100),
+        rawNum: (cogs / rev) * 100,
+        sub: `COGS: ${fmt(cogs)} / Rev: ${fmt(rev)}`,
+        badge: 'extracted',
+        type: 'ratio',
+        thresholds: { good: 40, warn: 70, invert: true }
+      });
+    }
+    if (opex !== null) {
+      kpis.push({
+        label: 'OpEx Ratio',
+        value: pct((opex / rev) * 100),
+        rawNum: (opex / rev) * 100,
+        sub: `OpEx: ${fmt(opex)} / Rev: ${fmt(rev)}`,
+        badge: 'extracted',
+        type: 'ratio',
+        thresholds: { good: 30, warn: 50, invert: true }
+      });
+    }
   }
-
+ 
+  // ── RAW VALUES ──
+  if (rev !== null) kpis.push({ label: 'Revenue', value: fmt(rev), rawNum: rev, sub: 'Total top-line revenue', badge: 'extracted', type: 'value' });
+  if (ebitda !== null) kpis.push({ label: 'EBITDA', value: fmt(ebitda), rawNum: ebitda, sub: data['EBITDA']?.confidence === 'derived' ? 'Computed from available data' : 'As reported', badge: data['EBITDA']?.confidence === 'derived' ? 'inferred' : 'extracted', type: 'value' });
+  if (ni !== null) kpis.push({ label: 'Net Income', value: fmt(ni), rawNum: ni, sub: 'Bottom-line profit', badge: 'extracted', type: 'value' });
+ 
+  // ── LIQUIDITY ──
+  if (curAssets !== null && curLiab !== null && curLiab !== 0) {
+    const cr = curAssets / curLiab;
+    kpis.push({
+      label: 'Current Ratio',
+      value: cr.toFixed(2) + 'x',
+      rawNum: cr,
+      sub: `CA: ${fmt(curAssets)} / CL: ${fmt(curLiab)}`,
+      badge: 'extracted',
+      type: 'ratio',
+      thresholds: { good: 2, warn: 1 }
+    });
+  }
+ 
+  // ── LEVERAGE ──
+  if (debt !== null && equity !== null && equity !== 0) {
+    const de = debt / Math.abs(equity);
+    kpis.push({
+      label: 'Debt / Equity',
+      value: de.toFixed(2) + 'x',
+      rawNum: de,
+      sub: `Debt: ${fmt(debt)} / Equity: ${fmt(equity)}`,
+      badge: 'extracted',
+      type: 'ratio',
+      thresholds: { good: 1, warn: 2, invert: true }
+    });
+  }
+ 
+  if (ebitda !== null && interest !== null && interest !== 0 && ebitda > 0) {
+    const ic = ebitda / Math.abs(interest);
+    kpis.push({
+      label: 'Interest Coverage',
+      value: ic.toFixed(1) + 'x',
+      rawNum: ic,
+      sub: `EBITDA / Interest Expense`,
+      badge: 'extracted',
+      type: 'ratio',
+      thresholds: { good: 3, warn: 1.5 }
+    });
+  }
+ 
+  // ── RETURNS ──
+  if (ni !== null && assets !== null && assets !== 0) {
+    const roa = (ni / assets) * 100;
+    kpis.push({
+      label: 'Return on Assets',
+      value: pct(roa),
+      rawNum: roa,
+      sub: `NI: ${fmt(ni)} / Assets: ${fmt(assets)}`,
+      badge: 'extracted',
+      type: 'margin',
+      thresholds: { good: 5, warn: 2 }
+    });
+  }
+ 
+  if (ni !== null && equity !== null && equity !== 0) {
+    const roe = (ni / Math.abs(equity)) * 100;
+    kpis.push({
+      label: 'Return on Equity',
+      value: pct(roe),
+      rawNum: roe,
+      sub: `NI: ${fmt(ni)} / Equity: ${fmt(equity)}`,
+      badge: 'extracted',
+      type: 'margin',
+      thresholds: { good: 15, warn: 8 }
+    });
+  }
+ 
+  // ── CASH FLOW ──
+  if (fcf !== null) kpis.push({ label: 'Free Cash Flow', value: fmt(fcf), rawNum: fcf, sub: data['Free Cash Flow']?.confidence === 'derived' ? 'OCF - CapEx (derived)' : 'As reported', badge: data['Free Cash Flow']?.confidence === 'derived' ? 'inferred' : 'extracted', type: 'value' });
+  if (ocf !== null) kpis.push({ label: 'Operating Cash Flow', value: fmt(ocf), rawNum: ocf, sub: 'Cash generated from operations', badge: 'extracted', type: 'value' });
+ 
+  // ── TAX RATE ──
+  if (tax !== null && pretax !== null && pretax !== 0) {
+    const tr = (tax / pretax) * 100;
+    kpis.push({
+      label: 'Effective Tax Rate',
+      value: pct(Math.abs(tr)),
+      rawNum: Math.abs(tr),
+      sub: `Tax: ${fmt(tax)} / Pre-tax: ${fmt(pretax)}`,
+      badge: 'extracted',
+      type: 'ratio',
+      thresholds: { good: 21, warn: 35, invert: true }
+    });
+  }
+ 
+  return kpis;
+}
+ 
+function getKPIColorClass(kpi) {
+  if (kpi.type === 'value') {
+    return kpi.rawNum < 0 ? 'negative' : 'amber';
+  }
+  if (!kpi.thresholds) return '';
+  const { good, warn, invert } = kpi.thresholds;
+  const v = kpi.rawNum;
+  if (invert) {
+    if (v <= good) return 'positive';
+    if (v <= warn) return '';
+    return 'negative';
+  } else {
+    if (v >= good) return 'positive';
+    if (v >= warn) return '';
+    return 'negative';
+  }
+}
+ 
+/* ── 8. ANOMALY DETECTOR ── */
+ 
+function detectAnomalies(data, kpis) {
+  const anomalies = [];
+  const get = (key) => data[key]?.value ?? null;
+ 
+  const rev = get('Revenue');
+  const cogs = get('Cost of Goods Sold');
+  const gp = get('Gross Profit');
+  const ebitda = get('EBITDA');
+  const ni = get('Net Income');
+  const curAssets = get('Current Assets');
+  const curLiab = get('Current Liabilities');
+  const debt = get('Total Debt');
+  const equity = get("Shareholders' Equity");
+  const ocf = get('Operating Cash Flow');
+  const fcf = get('Free Cash Flow');
+  const interest = get('Interest Expense');
+  const opex = get('Operating Expenses');
+ 
+  // ── NEGATIVE MARGINS ──
+  if (ni !== null && ni < 0) {
+    anomalies.push({
+      title: 'Negative Net Income',
+      desc: `Net income of ${fmt(ni)} indicates the company is operating at a loss.`,
+      explain: 'Could reflect restructuring costs, one-time charges, or fundamental operational challenges.',
+      severity: 'high'
+    });
+  }
+ 
+  if (gp !== null && rev !== null && rev > 0 && (gp / rev) < 0) {
+    anomalies.push({
+      title: 'Negative Gross Margin',
+      desc: `Cost of goods sold exceeds revenue — gross margin is below zero.`,
+      explain: 'Extremely rare and unsustainable. May indicate severe pricing pressure, input cost spikes, or data errors.',
+      severity: 'high'
+    });
+  }
+ 
+  // ── EBITDA > REVENUE ──
+  if (ebitda !== null && rev !== null && rev > 0 && ebitda > rev) {
+    anomalies.push({
+      title: 'EBITDA Exceeds Revenue',
+      desc: `EBITDA of ${fmt(ebitda)} exceeds total revenue of ${fmt(rev)}.`,
+      explain: 'Mathematically impossible under standard accounting. Likely a data extraction error, unit mismatch, or non-standard classification.',
+      severity: 'high'
+    });
+  }
+ 
+  // ── LOW LIQUIDITY ──
+  if (curAssets !== null && curLiab !== null && curLiab > 0) {
+    const cr = curAssets / curLiab;
+    if (cr < 1.0) {
+      anomalies.push({
+        title: 'Current Ratio Below 1.0x',
+        desc: `Current ratio of ${cr.toFixed(2)}x means current liabilities exceed current assets.`,
+        explain: 'Potential short-term liquidity risk. The company may face difficulty meeting near-term obligations without additional financing.',
+        severity: cr < 0.7 ? 'high' : 'medium'
+      });
+    }
+  }
+ 
+  // ── HIGH DEBT/EQUITY ──
+  if (debt !== null && equity !== null && Math.abs(equity) > 0) {
+    const de = debt / Math.abs(equity);
+    if (de > 3) {
+      anomalies.push({
+        title: 'Elevated Debt-to-Equity Ratio',
+        desc: `D/E ratio of ${de.toFixed(1)}x suggests high financial leverage.`,
+        explain: 'Significant reliance on debt financing increases interest burden and financial risk, particularly in rising-rate environments.',
+        severity: de > 5 ? 'high' : 'medium'
+      });
+    }
+  }
+ 
+  // ── NEGATIVE EQUITY ──
+  if (equity !== null && equity < 0) {
+    anomalies.push({
+      title: 'Negative Shareholders\' Equity',
+      desc: `Equity of ${fmt(equity)} — liabilities exceed total assets on the balance sheet.`,
+      explain: 'Indicates accumulated losses or aggressive share buybacks. Common in LBOs; otherwise a sign of financial distress.',
+      severity: 'medium'
+    });
+  }
+ 
+  // ── NEGATIVE OPERATING CASH FLOW ──
+  if (ocf !== null && ocf < 0) {
+    anomalies.push({
+      title: 'Negative Operating Cash Flow',
+      desc: `Operating cash flow of ${fmt(ocf)} means core operations are consuming, not generating, cash.`,
+      explain: 'Unsustainable long-term without external financing. May indicate working capital issues or genuine operational losses.',
+      severity: 'high'
+    });
+  }
+ 
+  // ── PROFIT/CASH FLOW DIVERGENCE ──
+  if (ni !== null && ocf !== null && ni > 0 && ocf < 0) {
+    anomalies.push({
+      title: 'Profit Without Cash Generation',
+      desc: `Net income is positive (${fmt(ni)}) but operating cash flow is negative (${fmt(ocf)}).`,
+      explain: 'Could indicate aggressive revenue recognition, deteriorating receivables, or earnings quality concerns. Classic red flag for forensic accounting.',
+      severity: 'high'
+    });
+  }
+ 
+  // ── HIGH COGS RATIO ──
+  if (cogs !== null && rev !== null && rev > 0) {
+    const cogsRatio = (cogs / rev) * 100;
+    if (cogsRatio > 90) {
+      anomalies.push({
+        title: 'Extremely High COGS Ratio',
+        desc: `COGS consumes ${cogsRatio.toFixed(1)}% of revenue, leaving minimal gross margin.`,
+        explain: 'Leaves almost no room for operating expenses or profit. May be structural (commodity business) or a warning sign.',
+        severity: cogsRatio > 95 ? 'high' : 'medium'
+      });
+    }
+  }
+ 
+  // ── HIGH OPEX RATIO ──
+  if (opex !== null && rev !== null && rev > 0) {
+    const opexRatio = (opex / rev) * 100;
+    if (opexRatio > 60) {
+      anomalies.push({
+        title: 'High Operating Expense Ratio',
+        desc: `Operating expenses represent ${opexRatio.toFixed(1)}% of revenue.`,
+        explain: 'Limits operating leverage. May indicate scaling challenges, poor cost discipline, or heavy investment in growth.',
+        severity: 'medium'
+      });
+    }
+  }
+ 
+  // ── INTEREST COVERAGE ──
+  if (ebitda !== null && interest !== null && Math.abs(interest) > 0 && ebitda > 0) {
+    const ic = ebitda / Math.abs(interest);
+    if (ic < 1.5) {
+      anomalies.push({
+        title: 'Thin Interest Coverage',
+        desc: `Interest coverage ratio of ${ic.toFixed(1)}x — EBITDA barely covers debt service.`,
+        explain: 'High risk of covenant breach or default under stress scenarios. Debt may be unsustainable at current earnings levels.',
+        severity: ic < 1.0 ? 'high' : 'medium'
+      });
+    }
+  }
+ 
+  // ── MISSING CRITICAL DATA ──
+  const criticalMissing = [];
+  if (rev === null) criticalMissing.push('Revenue');
+  if (ni === null) criticalMissing.push('Net Income');
+  if (ebitda === null) criticalMissing.push('EBITDA');
+ 
+  if (criticalMissing.length > 0) {
+    anomalies.push({
+      title: 'Incomplete Financial Data',
+      desc: `Could not extract: ${criticalMissing.join(', ')}. Some KPIs may be missing or estimated.`,
+      explain: 'Document may use non-standard terminology, or the relevant sections were not captured during extraction.',
+      severity: 'low'
+    });
+  }
+ 
+  return anomalies;
+}
+ 
+/* ── 9. INSIGHT GENERATOR ── */
+ 
+function generateInsights(data, kpis, anomalies) {
+  const insights = [];
+  const get = (key) => data[key]?.value ?? null;
+ 
+  const rev = get('Revenue');
+  const ni = get('Net Income');
+  const ebitda = get('EBITDA');
+  const gp = get('Gross Profit');
+  const ocf = get('Operating Cash Flow');
+  const fcf = get('Free Cash Flow');
+  const debt = get('Total Debt');
+  const equity = get("Shareholders' Equity");
+  const curAssets = get('Current Assets');
+  const curLiab = get('Current Liabilities');
+  const interest = get('Interest Expense');
+ 
+  // Profitability
+  if (rev && ni !== null) {
+    const npm = (ni / rev) * 100;
+    if (npm > 15) {
+      insights.push({ type: 'profitability', text: `The company demonstrates strong profitability with a net profit margin of ${pct(npm)}, well above the typical benchmark of 10–15% for established businesses. This reflects strong pricing power and disciplined cost management.` });
+    } else if (npm > 5) {
+      insights.push({ type: 'profitability', text: `Net profit margin of ${pct(npm)} is moderate. While the business is profitable, there is meaningful opportunity to improve bottom-line conversion — particularly through operating leverage or COGS reduction.` });
+    } else if (npm >= 0) {
+      insights.push({ type: 'profitability', text: `Thin net profit margin of ${pct(npm)} leaves limited buffer against revenue softness or cost escalation. Margin expansion should be a key strategic priority.` });
+    } else {
+      insights.push({ type: 'risk', text: `The company is currently loss-making with a net margin of ${pct(npm)}. Without a clear path to profitability, continued losses will erode equity and may necessitate external capital.` });
+    }
+  }
+ 
+  // EBITDA Quality
+  if (ebitda !== null && rev) {
+    const em = (ebitda / rev) * 100;
+    const suffix = data['EBITDA']?.confidence === 'derived' ? ' (note: EBITDA computed from available line items)' : '';
+    if (em > 25) {
+      insights.push({ type: 'profitability', text: `EBITDA margin of ${pct(em)} is robust${suffix}. High cash-generation potential relative to revenue suggests strong operational efficiency and significant capacity to service debt or fund reinvestment.` });
+    } else if (em > 10) {
+      insights.push({ type: 'efficiency', text: `EBITDA margin of ${pct(em)}${suffix} indicates healthy operational performance. The business generates meaningful cash before capital structure effects, supporting ongoing investment capacity.` });
+    } else if (em >= 0) {
+      insights.push({ type: 'efficiency', text: `EBITDA margin of ${pct(em)}${suffix} is relatively lean. Operating efficiency improvements — particularly in direct cost and overhead management — could materially impact cash flow generation.` });
+    }
+  }
+ 
+  // Liquidity
+  if (curAssets !== null && curLiab !== null && curLiab > 0) {
+    const cr = curAssets / curLiab;
+    if (cr >= 2) {
+      insights.push({ type: 'liquidity', text: `Current ratio of ${cr.toFixed(2)}x reflects a strong liquidity position. The company holds adequate short-term assets to comfortably cover near-term obligations, providing financial flexibility.` });
+    } else if (cr >= 1.2) {
+      insights.push({ type: 'liquidity', text: `Current ratio of ${cr.toFixed(2)}x indicates adequate near-term liquidity. Working capital management should be monitored to maintain this buffer through business cycles.` });
+    } else {
+      insights.push({ type: 'risk', text: `Current ratio of ${cr.toFixed(2)}x raises near-term liquidity concerns. The company's current liabilities approach or exceed its liquid assets, creating potential cash flow pressure.` });
+    }
+  }
+ 
+  // Leverage / Capital Structure
+  if (debt !== null && equity !== null && Math.abs(equity) > 0) {
+    const de = debt / Math.abs(equity);
+    if (de > 2) {
+      insights.push({ type: 'risk', text: `Debt-to-equity of ${de.toFixed(1)}x indicates a leveraged capital structure. While debt can enhance returns in favorable conditions, elevated leverage increases vulnerability to earnings volatility and interest rate risk.` });
+    } else if (de > 0.5) {
+      insights.push({ type: 'investor', text: `Moderate D/E ratio of ${de.toFixed(1)}x reflects a balanced capital structure. The use of debt suggests disciplined leverage without excessive risk — a profile typically well-received by institutional investors.` });
+    } else if (de >= 0) {
+      insights.push({ type: 'investor', text: `Conservative D/E ratio of ${de.toFixed(1)}x signals a nearly debt-free balance sheet. While this reduces financial risk, it may also suggest underutilization of leverage to amplify returns on equity.` });
+    }
+  }
+ 
+  // Cash Flow Quality
+  if (ocf !== null && ni !== null && ni > 0) {
+    const ratio = ocf / ni;
+    if (ratio > 1.2) {
+      insights.push({ type: 'investor', text: `Operating cash flow of ${fmt(ocf)} exceeds reported net income (OCF/NI: ${ratio.toFixed(1)}x), suggesting high earnings quality. Cash generation exceeds accrual-based profit — a positive signal for value investors.` });
+    } else if (ratio < 0.5) {
+      insights.push({ type: 'risk', text: `Operating cash flow significantly lags net income (OCF/NI: ${ratio.toFixed(1)}x). This divergence warrants scrutiny of revenue recognition policies, receivables build-up, or deferred expenses.` });
+    }
+  }
+ 
+  if (fcf !== null && fcf > 0) {
+    insights.push({ type: 'investor', text: `Positive free cash flow of ${fmt(fcf)} indicates the business generates cash beyond capital maintenance requirements. This positions the company to pursue dividends, buybacks, acquisitions, or debt repayment without external financing.` });
+  } else if (fcf !== null && fcf < 0) {
+    insights.push({ type: 'efficiency', text: `Negative free cash flow of ${fmt(fcf)} means capital expenditures exceed operating cash generation. This may reflect heavy investment in growth assets; however, sustained negative FCF requires monitoring of financing capacity.` });
+  }
+ 
+  // Interest coverage
+  if (ebitda !== null && interest !== null && Math.abs(interest) > 0) {
+    const ic = ebitda / Math.abs(interest);
+    if (ic > 5) {
+      insights.push({ type: 'investor', text: `Interest coverage of ${ic.toFixed(1)}x is healthy. Earnings comfortably cover debt service obligations, reducing refinancing risk and supporting an investment-grade credit profile.` });
+    } else if (ic < 2) {
+      insights.push({ type: 'risk', text: `Interest coverage of ${ic.toFixed(1)}x is uncomfortably thin. Limited EBITDA headroom above debt service creates meaningful covenant and default risk in a stress scenario.` });
+    }
+  }
+ 
+  // Fallback insight
+  if (insights.length === 0) {
+    insights.push({ type: 'efficiency', text: 'Insufficient financial data was extracted to generate detailed investment-grade insights. Please ensure the uploaded document contains standard income statement or balance sheet line items with numeric values.' });
+  }
+ 
   return insights;
 }
-
-// ---------------- RENDER ----------------
-function render(d,k,issues,insights){
-  let html = "<h3>Financial Data</h3><ul>";
-  for(let key in d){
-    html+=`<li><b>${key}</b>: $${d[key]}</li>`;
+ 
+/* ── 10. RENDERER ── */
+ 
+function renderKPIs(kpis) {
+  const grid = document.getElementById('kpi-grid');
+  grid.innerHTML = '';
+  if (kpis.length === 0) {
+    grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1">No KPIs could be calculated from the extracted data.</div>';
+    return;
   }
-  html+="</ul>";
-
-  html+="<h3>KPIs</h3><ul>";
-  for(let key in k){
-    html+=`<li>${key}: ${typeof k[key]==="number" ? k[key].toFixed(2) : k[key]}</li>`;
+  kpis.forEach(kpi => {
+    const colorClass = getKPIColorClass(kpi);
+    const badgeClass = kpi.badge === 'inferred' ? 'badge-inferred'
+                     : kpi.badge === 'extracted' ? 'badge-extracted'
+                     : 'badge-na';
+    const badgeLabel = kpi.badge === 'inferred' ? 'EST' : kpi.badge === 'extracted' ? 'EXT' : 'N/A';
+    const cell = document.createElement('div');
+    cell.className = 'kpi-cell';
+    cell.innerHTML = `
+      <div class="kpi-cell-label">${esc(kpi.label)}</div>
+      <div class="kpi-cell-value ${colorClass}">${esc(kpi.value)}</div>
+      <div class="kpi-cell-sub">${esc(kpi.sub)}</div>
+      <span class="kpi-cell-badge ${badgeClass}">${badgeLabel}</span>
+    `;
+    grid.appendChild(cell);
+  });
+}
+ 
+function renderChart(kpis) {
+  const rows = document.getElementById('bar-rows');
+  rows.innerHTML = '';
+ 
+  // Select percentage-based metrics for bar chart
+  const barKpis = kpis.filter(k =>
+    ['Gross Margin','EBITDA Margin','Net Profit Margin','Operating Margin','Cost Ratio','OpEx Ratio'].includes(k.label)
+    && typeof k.rawNum === 'number'
+  );
+ 
+  if (barKpis.length === 0) {
+    document.getElementById('chart-section').style.display = 'none';
+    return;
   }
-  html+="</ul>";
-
-  html+="<h3>Anomalies</h3><ul>";
-  issues.forEach(i=> html+=`<li>${i}</li>`);
-  html+="</ul>";
-
-  html+="<h3>Insights</h3><ul>";
-  insights.forEach(i=> html+=`<li>${i}</li>`);
-  html+="</ul>";
-
-  resultsDiv.innerHTML = html;
+ 
+  barKpis.forEach(kpi => {
+    const abs = Math.abs(kpi.rawNum);
+    const pctWidth = Math.min(100, abs); // treat as percentage
+    const colorClass = kpi.rawNum < 0 ? 'c-red'
+      : ['Cost Ratio','OpEx Ratio'].includes(kpi.label)
+        ? (abs > 70 ? 'c-red' : abs > 50 ? 'c-amber' : 'c-blue')
+        : (abs >= 20 ? 'c-green' : abs >= 10 ? 'c-amber' : 'c-red');
+ 
+    const row = document.createElement('div');
+    row.className = 'bar-row';
+    row.innerHTML = `
+      <div class="bar-name">${esc(kpi.label)}</div>
+      <div class="bar-track">
+        <div class="bar-fill ${colorClass}" style="width:0%" data-target="${pctWidth}">${esc(kpi.value)}</div>
+      </div>
+    `;
+    rows.appendChild(row);
+  });
+ 
+  // Animate bars after a brief delay
+  requestAnimationFrame(() => {
+    setTimeout(() => {
+      rows.querySelectorAll('.bar-fill').forEach(el => {
+        el.style.width = el.dataset.target + '%';
+      });
+    }, 200);
+  });
+}
+ 
+function renderDataTable(items) {
+  const tbody = document.getElementById('data-tbody');
+  const countEl = document.getElementById('data-count');
+  tbody.innerHTML = '';
+  countEl.textContent = items.length + ' items';
+ 
+  if (items.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px;font-family:var(--font-mono);font-size:12px;">No structured financial data extracted.</td></tr>';
+    return;
+  }
+ 
+  // Sort by category then canonical
+  const sorted = [...items].sort((a, b) => {
+    const catOrder = ['Income Statement', 'Balance Sheet', 'Cash Flow'];
+    return (catOrder.indexOf(a.category) - catOrder.indexOf(b.category)) ||
+           a.canonical.localeCompare(b.canonical);
+  });
+ 
+  sorted.forEach(item => {
+    const valClass = item.value < 0 ? 'td-negative' : '';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${esc(item.canonical)}</td>
+      <td class="td-source">${esc(item.category)}</td>
+      <td class="td-source" style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(item.rawLine)}">${esc(item.rawLine.substring(0,80))}${item.rawLine.length>80?'…':''}</td>
+      <td class="${valClass}">${fmt(item.value)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+ 
+function renderAnomalies(anomalies) {
+  const list = document.getElementById('anomaly-list');
+  const countEl = document.getElementById('anomaly-count');
+  list.innerHTML = '';
+  countEl.textContent = anomalies.length;
+ 
+  if (anomalies.length === 0) {
+    list.innerHTML = '<div class="anomaly-card low"><div class="anomaly-severity sev-low">PASS</div><div class="anomaly-body"><div class="anomaly-title">No anomalies detected</div><div class="anomaly-desc">All extracted metrics are within expected ranges.</div></div></div>';
+    return;
+  }
+ 
+  // Sort: high → medium → low
+  const sorted = [...anomalies].sort((a, b) => {
+    const ord = { high: 0, medium: 1, low: 2 };
+    return ord[a.severity] - ord[b.severity];
+  });
+ 
+  sorted.forEach(a => {
+    const card = document.createElement('div');
+    card.className = `anomaly-card ${a.severity}`;
+    card.innerHTML = `
+      <span class="anomaly-severity sev-${a.severity}">${a.severity.toUpperCase()}</span>
+      <div class="anomaly-body">
+        <div class="anomaly-title">${esc(a.title)}</div>
+        <div class="anomaly-desc">${esc(a.desc)}</div>
+        <div class="anomaly-explain">${esc(a.explain)}</div>
+      </div>
+    `;
+    list.appendChild(card);
+  });
+}
+ 
+function renderInsights(insights) {
+  const grid = document.getElementById('insights-grid');
+  grid.innerHTML = '';
+  insights.forEach(ins => {
+    const tagLabels = {
+      profitability: 'PROFITABILITY',
+      efficiency: 'OPERATIONAL EFFICIENCY',
+      risk: 'RISK ASSESSMENT',
+      liquidity: 'LIQUIDITY & SOLVENCY',
+      investor: 'INVESTOR PERSPECTIVE'
+    };
+    const card = document.createElement('div');
+    card.className = `insight-card ${ins.type}`;
+    card.innerHTML = `
+      <div class="insight-tag tag-${ins.type}">${tagLabels[ins.type] || ins.type.toUpperCase()}</div>
+      <div class="insight-text">${esc(ins.text)}</div>
+    `;
+    grid.appendChild(card);
+  });
+}
+ 
+function renderResults(items, rawText, fileName) {
+  const normData = normalizeData(items);
+  const kpis = computeKPIs(normData);
+  const anomalies = detectAnomalies(normData, kpis);
+  const insights = generateInsights(normData, kpis, anomalies);
+ 
+  // Header
+  const company = fileName.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ').toUpperCase();
+  document.getElementById('res-company').textContent = company;
+  document.getElementById('res-meta').textContent =
+    `${items.length} line items extracted · ${kpis.length} KPIs computed · ${anomalies.length} anomaly flags`;
+ 
+  // Render sections
+  renderKPIs(kpis);
+  renderChart(kpis);
+  renderDataTable(items);
+  renderAnomalies(anomalies);
+  renderInsights(insights);
+ 
+  // Raw preview (first 3000 chars)
+  const preview = rawText.substring(0, 3000).trim();
+  document.getElementById('raw-preview').textContent = preview + (rawText.length > 3000 ? '\n\n[... truncated ...]' : '');
+ 
+  // Show results
+  document.getElementById('results').style.display = 'block';
+  setTimeout(() => {
+    document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 100);
+}
+ 
+/* ── 11. PIPELINE ORCHESTRATOR ── */
+ 
+async function runPipeline() {
+  if (!uploadedFiles.length) return;
+ 
+  const btn = document.getElementById('btn-run');
+  btn.disabled = true;
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('progress-steps').style.display = 'block';
+ 
+  // Reset steps
+  for (let i = 0; i < 7; i++) setStep(i, '');
+ 
+  let allText = '';
+  let allItems = [];
+  let primaryFile = uploadedFiles[0].name;
+ 
+  try {
+    // STEP 0: Reading files
+    setStep(0, 'active');
+    setStatus('Reading files…', 'loading');
+    await delay(200);
+ 
+    // STEP 1: Extracting text
+    setStep(0, 'done'); setStep(1, 'active');
+    setStatus('Extracting text content…', 'loading');
+ 
+    for (const file of uploadedFiles) {
+      const ext = file.name.split('.').pop().toLowerCase();
+      let text = '';
+      try {
+        if (ext === 'pdf') {
+          if (typeof pdfjsLib === 'undefined') throw new Error('PDF.js not loaded');
+          text = await extractPDF(file);
+        } else {
+          text = await readTextFile(file);
+        }
+        allText += `\n\n=== ${file.name} ===\n` + text;
+      } catch (err) {
+        setStatus(`Warning: Could not fully parse ${file.name} — ${err.message}`, 'error');
+        await delay(1500);
+      }
+    }
+ 
+    if (!allText.trim()) {
+      throw new Error('No readable content extracted from uploaded files.');
+    }
+ 
+    await delay(100);
+ 
+    // STEP 2: Parse financial items
+    setStep(1, 'done'); setStep(2, 'active');
+    setStatus('Parsing financial line items…', 'loading');
+    await delay(300);
+ 
+    allItems = extractFinancialItems(allText);
+ 
+    if (allItems.length === 0 && !hasFinancialContent(allText)) {
+      throw new Error('No financial data detected in the document. Please upload an income statement, balance sheet, or similar financial report.');
+    }
+ 
+    await delay(100);
+ 
+    // STEP 3: Normalize
+    setStep(2, 'done'); setStep(3, 'active');
+    setStatus('Normalizing data…', 'loading');
+    await delay(300);
+ 
+    // STEP 4: KPIs
+    setStep(3, 'done'); setStep(4, 'active');
+    setStatus('Computing KPIs and ratios…', 'loading');
+    await delay(300);
+ 
+    // STEP 5: Anomaly detection
+    setStep(4, 'done'); setStep(5, 'active');
+    setStatus('Running anomaly detection…', 'loading');
+    await delay(300);
+ 
+    // STEP 6: Insights
+    setStep(5, 'done'); setStep(6, 'active');
+    setStatus('Generating investment insights…', 'loading');
+    await delay(400);
+ 
+    setStep(6, 'done');
+    setStatus(`Analysis complete — ${allItems.length} data points extracted`, 'success');
+ 
+    renderResults(allItems, allText, primaryFile);
+ 
+  } catch (err) {
+    setStatus('Error: ' + err.message, 'error');
+    console.error(err);
+  } finally {
+    btn.disabled = false;
+  }
+}
+ 
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+ 
+function resetAll() {
+  clearAll();
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('progress-steps').style.display = 'none';
+  setStatus('', '');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 </script>
-
 </body>
 </html>
