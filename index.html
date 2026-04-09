@@ -1,6 +1,3 @@
-# Finance-Glance
-# FinLens
-```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -93,23 +90,73 @@ function handleFile(file) {
 
   reader.onload = function(e) {
     const text = e.target.result;
-    const data = parseCSV(text);
-    const kpis = calculateKPIs(data);
-    displayResults(data, kpis);
+
+    // Split into "pages" (basic heuristic for TXT/CSV dumps)
+    const pages = text.split(/\f|\n\s*\n\s*\n/);
+
+    let validData = [];
+
+    pages.forEach(page => {
+      if (isFinancialPage(page)) {
+        const parsed = parseCSV(page);
+        if (parsed.length > 0) {
+          validData = validData.concat(parsed);
+        }
+      }
+    });
+
+    if (validData.length === 0) {
+      resultsDiv.innerHTML = "<p>No usable financial data detected.</p>";
+      return;
+    }
+
+    const kpis = calculateKPIs(validData);
+    displayResults(validData, kpis);
   };
 
   reader.readAsText(file);
 }
 
+// 🔍 Detect if a page likely contains financial data
+function isFinancialPage(text) {
+  const keywords = [
+    "revenue", "sales", "income",
+    "expenses", "cost", "net income",
+    "profit", "loss"
+  ];
+
+  const hasKeyword = keywords.some(k =>
+    text.toLowerCase().includes(k)
+  );
+
+  // Check for presence of numbers (financial data)
+  const hasNumbers = /\d/.test(text);
+
+  return hasKeyword && hasNumbers;
+}
+
 function parseCSV(text) {
   const lines = text.split("\n").filter(l => l.trim() !== "");
+
+  // Require at least header + 1 row
+  if (lines.length < 2) return [];
+
   const headers = lines[0].split(",").map(h => h.trim());
+
+  // Must contain at least one financial column
+  const validHeaders = headers.some(h =>
+    ["revenue","expenses","income","cost","profit"]
+      .includes(h.toLowerCase())
+  );
+
+  if (!validHeaders) return [];
 
   const rows = lines.slice(1).map(line => {
     const values = line.split(",");
     let obj = {};
     headers.forEach((h, i) => {
-      obj[h] = parseFloat(values[i]) || values[i];
+      const val = values[i];
+      obj[h] = isNaN(val) ? val : parseFloat(val);
     });
     return obj;
   });
@@ -120,16 +167,21 @@ function parseCSV(text) {
 function calculateKPIs(data) {
   let revenue = 0;
   let expenses = 0;
-  let netIncome = 0;
 
   data.forEach(row => {
-    if (row.Revenue) revenue += row.Revenue;
-    if (row.Expenses) expenses += row.Expenses;
+    Object.keys(row).forEach(key => {
+      const lower = key.toLowerCase();
+      if (lower.includes("revenue") || lower.includes("sales")) {
+        revenue += Number(row[key]) || 0;
+      }
+      if (lower.includes("expense") || lower.includes("cost")) {
+        expenses += Number(row[key]) || 0;
+      }
+    });
   });
 
-  netIncome = revenue - expenses;
-
-  let profitMargin = revenue ? (netIncome / revenue) * 100 : 0;
+  const netIncome = revenue - expenses;
+  const profitMargin = revenue ? (netIncome / revenue) * 100 : 0;
 
   return {
     revenue,
@@ -151,7 +203,7 @@ function displayResults(data, kpis) {
     </table>
   `;
 
-  html += "<h3>Raw Data</h3><table><tr>";
+  html += "<h3>Valid Extracted Data Only</h3><table><tr>";
 
   Object.keys(data[0]).forEach(key => {
     html += `<th>${key}</th>`;
@@ -175,4 +227,3 @@ function displayResults(data, kpis) {
 
 </body>
 </html>
-```
