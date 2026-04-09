@@ -2,67 +2,44 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Financial Statement Analyzer (PDF समर्थ)</title>
+  <title>Advanced Financial Statement Analyzer</title>
 
-  <!-- PDF.js CDN -->
+  <!-- PDF.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
   <style>
     body {
-      font-family: Arial, sans-serif;
+      font-family: Arial;
       background: #f5f7fa;
-      margin: 0;
-      padding: 0;
       text-align: center;
-    }
-    h1 {
-      background: #1f2937;
-      color: white;
-      padding: 20px;
-      margin: 0;
     }
     #dropZone {
       border: 2px dashed #3b82f6;
-      border-radius: 10px;
       padding: 40px;
-      margin: 40px auto;
       width: 60%;
+      margin: 40px auto;
       background: white;
-      cursor: pointer;
     }
     #dropZone.hover {
       background: #e0f2fe;
     }
     #output {
       width: 80%;
-      margin: 20px auto;
-      text-align: left;
+      margin: auto;
       background: white;
       padding: 20px;
-      border-radius: 10px;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-    th, td {
-      border: 1px solid #ddd;
-      padding: 8px;
-    }
-    th {
-      background: #3b82f6;
-      color: white;
+      text-align: left;
     }
   </style>
 </head>
 <body>
 
-<h1>Financial Statement Analyzer (CSV + PDF)</h1>
+<h1>Advanced Financial Statement Analyzer</h1>
 
-<div id="dropZone">Drag & Drop CSV, TXT, or PDF Files Here</div>
+<div id="dropZone">Drop PDF, CSV, or TXT Financial Statements</div>
 
 <div id="output">
-  <h2>Extracted Data & KPIs</h2>
+  <h2>Results</h2>
   <div id="results"></div>
 </div>
 
@@ -70,7 +47,8 @@
 const dropZone = document.getElementById("dropZone");
 const resultsDiv = document.getElementById("results");
 
-dropZone.addEventListener("dragover", (e) => {
+// Drag UI
+dropZone.addEventListener("dragover", e => {
   e.preventDefault();
   dropZone.classList.add("hover");
 });
@@ -79,144 +57,134 @@ dropZone.addEventListener("dragleave", () => {
   dropZone.classList.remove("hover");
 });
 
-dropZone.addEventListener("drop", (e) => {
+dropZone.addEventListener("drop", e => {
   e.preventDefault();
   dropZone.classList.remove("hover");
 
   const file = e.dataTransfer.files[0];
   if (!file) return;
 
+  resultsDiv.innerHTML = "<p>Processing file...</p>";
+
   if (file.type === "application/pdf") {
     handlePDF(file);
   } else {
-    handleTextFile(file);
+    handleText(file);
   }
 });
 
+// -------- PDF HANDLING --------
 async function handlePDF(file) {
   const reader = new FileReader();
 
   reader.onload = async function(e) {
-    const typedarray = new Uint8Array(e.target.result);
+    try {
+      const pdf = await pdfjsLib.getDocument(
+        new Uint8Array(e.target.result)
+      ).promise;
 
-    const pdf = await pdfjsLib.getDocument(typedarray).promise;
+      let lines = [];
 
-    let allText = "";
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
 
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const content = await page.getTextContent();
+        // Rebuild lines based on Y position
+        let pageLines = {};
+        content.items.forEach(item => {
+          const y = Math.round(item.transform[5]);
 
-      const strings = content.items.map(item => item.str);
-      const pageText = strings.join(" ");
+          if (!pageLines[y]) pageLines[y] = [];
+          pageLines[y].push(item.str);
+        });
 
-      // Only include financial pages
-      if (isFinancialPage(pageText)) {
-        allText += pageText + "\n";
+        Object.values(pageLines).forEach(lineArr => {
+          const line = lineArr.join(" ");
+          lines.push(line);
+        });
       }
-    }
 
-    processExtractedText(allText);
+      processLines(lines);
+
+    } catch (err) {
+      resultsDiv.innerHTML = "<p>Error reading PDF.</p>";
+      console.error(err);
+    }
   };
 
   reader.readAsArrayBuffer(file);
 }
 
-function handleTextFile(file) {
+// -------- TEXT/CSV HANDLING --------
+function handleText(file) {
   const reader = new FileReader();
 
-  reader.onload = function(e) {
-    processExtractedText(e.target.result);
+  reader.onload = e => {
+    const lines = e.target.result.split("\n");
+    processLines(lines);
   };
 
   reader.readAsText(file);
 }
 
-function processExtractedText(text) {
-  const pages = text.split(/\f|\n\s*\n\s*\n/);
+// -------- CORE PROCESSING --------
+function processLines(lines) {
+  const extracted = extractFinancialData(lines);
 
-  let validData = [];
+  if (Object.keys(extracted).length === 0) {
+    resultsDiv.innerHTML = "<p>No financial data detected.</p>";
+    return;
+  }
 
-  pages.forEach(page => {
-    if (isFinancialPage(page)) {
-      const parsed = parseCSV(page);
-      if (parsed.length > 0) {
-        validData = validData.concat(parsed);
+  const kpis = calculateKPIs(extracted);
+  display(extracted, kpis);
+}
+
+// -------- SMART EXTRACTION --------
+function extractFinancialData(lines) {
+  const patterns = {
+    revenue: /revenue|total sales/i,
+    cogs: /cost of goods|cogs/i,
+    expenses: /operating expenses|total expenses/i,
+    netIncome: /net income|net profit/i,
+    grossProfit: /gross profit/i
+  };
+
+  let data = {};
+
+  lines.forEach(line => {
+    const value = extractNumber(line);
+    if (value === null) return;
+
+    for (let key in patterns) {
+      if (patterns[key].test(line)) {
+        data[key] = value;
       }
     }
   });
 
-  if (validData.length === 0) {
-    resultsDiv.innerHTML = "<p>No usable financial data detected.</p>";
-    return;
-  }
-
-  const kpis = calculateKPIs(validData);
-  displayResults(validData, kpis);
+  return data;
 }
 
-// Detect financial relevance
-function isFinancialPage(text) {
-  const keywords = [
-    "revenue","sales","income",
-    "expenses","cost","net income",
-    "profit","loss"
-  ];
+// -------- NUMBER PARSER --------
+function extractNumber(text) {
+  const match = text.match(/-?\$?\(?\d{1,3}(,\d{3})*(\.\d+)?\)?/);
+  if (!match) return null;
 
-  const hasKeyword = keywords.some(k =>
-    text.toLowerCase().includes(k)
-  );
+  let num = match[0]
+    .replace(/[$,]/g, "")
+    .replace("(", "-")
+    .replace(")", "");
 
-  const hasNumbers = /\d/.test(text);
-
-  return hasKeyword && hasNumbers;
+  return parseFloat(num);
 }
 
-// Basic extraction (works best if PDF resembles tabular data)
-function parseCSV(text) {
-  const lines = text.split("\n").filter(l => l.trim() !== "");
-
-  if (lines.length < 2) return [];
-
-  const headers = lines[0].split(/,|\s{2,}/).map(h => h.trim());
-
-  const validHeaders = headers.some(h =>
-    ["revenue","expenses","income","cost","profit"]
-      .includes(h.toLowerCase())
-  );
-
-  if (!validHeaders) return [];
-
-  const rows = lines.slice(1).map(line => {
-    const values = line.split(/,|\s{2,}/);
-    let obj = {};
-    headers.forEach((h, i) => {
-      const val = values[i];
-      obj[h] = isNaN(val) ? val : parseFloat(val);
-    });
-    return obj;
-  });
-
-  return rows;
-}
-
+// -------- KPI CALCULATIONS --------
 function calculateKPIs(data) {
-  let revenue = 0;
-  let expenses = 0;
+  const revenue = data.revenue || 0;
+  const expenses = data.expenses || 0;
+  const netIncome = data.netIncome || (revenue - expenses);
 
-  data.forEach(row => {
-    Object.keys(row).forEach(key => {
-      const lower = key.toLowerCase();
-      if (lower.includes("revenue") || lower.includes("sales")) {
-        revenue += Number(row[key]) || 0;
-      }
-      if (lower.includes("expense") || lower.includes("cost")) {
-        expenses += Number(row[key]) || 0;
-      }
-    });
-  });
-
-  const netIncome = revenue - expenses;
   const profitMargin = revenue ? (netIncome / revenue) * 100 : 0;
 
   return {
@@ -227,35 +195,25 @@ function calculateKPIs(data) {
   };
 }
 
-function displayResults(data, kpis) {
-  let html = "<h3>KPIs</h3>";
+// -------- DISPLAY --------
+function display(data, kpis) {
+  let html = "<h3>Extracted Financials</h3><ul>";
+
+  for (let key in data) {
+    html += `<li><b>${key}</b>: $${data[key]}</li>`;
+  }
+
+  html += "</ul>";
+
+  html += "<h3>KPIs</h3>";
   html += `
-    <table>
-      <tr><th>Metric</th><th>Value</th></tr>
-      <tr><td>Total Revenue</td><td>$${kpis.revenue.toFixed(2)}</td></tr>
-      <tr><td>Total Expenses</td><td>$${kpis.expenses.toFixed(2)}</td></tr>
-      <tr><td>Net Income</td><td>$${kpis.netIncome.toFixed(2)}</td></tr>
-      <tr><td>Profit Margin</td><td>${kpis.profitMargin}%</td></tr>
-    </table>
+    <ul>
+      <li>Revenue: $${kpis.revenue}</li>
+      <li>Expenses: $${kpis.expenses}</li>
+      <li>Net Income: $${kpis.netIncome}</li>
+      <li>Profit Margin: ${kpis.profitMargin}%</li>
+    </ul>
   `;
-
-  html += "<h3>Valid Extracted Data Only</h3><table><tr>";
-
-  Object.keys(data[0]).forEach(key => {
-    html += `<th>${key}</th>`;
-  });
-
-  html += "</tr>";
-
-  data.forEach(row => {
-    html += "<tr>";
-    Object.values(row).forEach(val => {
-      html += `<td>${val}</td>`;
-    });
-    html += "</tr>";
-  });
-
-  html += "</table>";
 
   resultsDiv.innerHTML = html;
 }
