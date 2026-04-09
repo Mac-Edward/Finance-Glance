@@ -1,45 +1,38 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Advanced Financial Statement Analyzer</title>
+<meta charset="UTF-8">
+<title>AI Financial Statement Analyzer</title>
 
-  <!-- PDF.js -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
-  <style>
-    body {
-      font-family: Arial;
-      background: #f5f7fa;
-      text-align: center;
-    }
-    #dropZone {
-      border: 2px dashed #3b82f6;
-      padding: 40px;
-      width: 60%;
-      margin: 40px auto;
-      background: white;
-    }
-    #dropZone.hover {
-      background: #e0f2fe;
-    }
-    #output {
-      width: 80%;
-      margin: auto;
-      background: white;
-      padding: 20px;
-      text-align: left;
-    }
-  </style>
+<style>
+body { font-family: Arial; background:#f4f6f9; text-align:center; }
+#dropZone {
+  border:2px dashed #3b82f6;
+  padding:40px;
+  margin:40px auto;
+  width:60%;
+  background:white;
+}
+#dropZone.hover { background:#e0f2fe; }
+#output {
+  width:85%;
+  margin:auto;
+  background:white;
+  padding:20px;
+  text-align:left;
+}
+</style>
 </head>
+
 <body>
 
-<h1>Advanced Financial Statement Analyzer</h1>
-
-<div id="dropZone">Drop PDF, CSV, or TXT Financial Statements</div>
+<h1>AI Financial Analyzer</h1>
+<div id="dropZone">Drop ANY Financial File (PDF, CSV, TXT)</div>
 
 <div id="output">
-  <h2>Results</h2>
+  <h2>Analysis</h2>
   <div id="results"></div>
 </div>
 
@@ -47,118 +40,100 @@
 const dropZone = document.getElementById("dropZone");
 const resultsDiv = document.getElementById("results");
 
-// Drag UI
-dropZone.addEventListener("dragover", e => {
-  e.preventDefault();
-  dropZone.classList.add("hover");
+// ---------------- DRAG DROP ----------------
+dropZone.addEventListener("dragover", e=>{
+  e.preventDefault(); dropZone.classList.add("hover");
 });
+dropZone.addEventListener("dragleave", ()=>dropZone.classList.remove("hover"));
 
-dropZone.addEventListener("dragleave", () => {
-  dropZone.classList.remove("hover");
-});
-
-dropZone.addEventListener("drop", e => {
+dropZone.addEventListener("drop", e=>{
   e.preventDefault();
   dropZone.classList.remove("hover");
 
   const file = e.dataTransfer.files[0];
-  if (!file) return;
+  if(!file) return;
 
-  resultsDiv.innerHTML = "<p>Processing file...</p>";
+  resultsDiv.innerHTML = "Processing...";
 
-  if (file.type === "application/pdf") {
-    handlePDF(file);
-  } else {
-    handleText(file);
-  }
+  if(file.type === "application/pdf") handlePDF(file);
+  else handleText(file);
 });
 
-// -------- PDF HANDLING --------
-async function handlePDF(file) {
+// ---------------- FILE HANDLING ----------------
+async function handlePDF(file){
   const reader = new FileReader();
+  reader.onload = async function(e){
+    const pdf = await pdfjsLib.getDocument(new Uint8Array(e.target.result)).promise;
+    let lines=[];
 
-  reader.onload = async function(e) {
-    try {
-      const pdf = await pdfjsLib.getDocument(
-        new Uint8Array(e.target.result)
-      ).promise;
+    for(let i=1;i<=pdf.numPages;i++){
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
 
-      let lines = [];
+      let map={};
+      content.items.forEach(item=>{
+        const y = Math.round(item.transform[5]);
+        if(!map[y]) map[y]=[];
+        map[y].push(item.str);
+      });
 
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const content = await page.getTextContent();
-
-        // Rebuild lines based on Y position
-        let pageLines = {};
-        content.items.forEach(item => {
-          const y = Math.round(item.transform[5]);
-
-          if (!pageLines[y]) pageLines[y] = [];
-          pageLines[y].push(item.str);
-        });
-
-        Object.values(pageLines).forEach(lineArr => {
-          const line = lineArr.join(" ");
-          lines.push(line);
-        });
-      }
-
-      processLines(lines);
-
-    } catch (err) {
-      resultsDiv.innerHTML = "<p>Error reading PDF.</p>";
-      console.error(err);
+      Object.values(map).forEach(arr=>{
+        lines.push(arr.join(" "));
+      });
     }
-  };
 
+    analyze(lines);
+  };
   reader.readAsArrayBuffer(file);
 }
 
-// -------- TEXT/CSV HANDLING --------
-function handleText(file) {
+function handleText(file){
   const reader = new FileReader();
-
-  reader.onload = e => {
+  reader.onload = e=>{
     const lines = e.target.result.split("\n");
-    processLines(lines);
+    analyze(lines);
   };
-
   reader.readAsText(file);
 }
 
-// -------- CORE PROCESSING --------
-function processLines(lines) {
-  const extracted = extractFinancialData(lines);
+// ---------------- EXTRACTION ENGINE ----------------
+function analyze(lines){
+  const data = extractFinancials(lines);
 
-  if (Object.keys(extracted).length === 0) {
-    resultsDiv.innerHTML = "<p>No financial data detected.</p>";
+  if(Object.keys(data).length===0){
+    resultsDiv.innerHTML = "<b>No usable financial data detected.</b>";
     return;
   }
 
-  const kpis = calculateKPIs(extracted);
-  display(extracted, kpis);
+  const kpis = computeKPIs(data);
+  const anomalies = detectAnomalies(data, kpis);
+  const insights = generateInsights(data, kpis, anomalies);
+
+  render(data, kpis, anomalies, insights);
 }
 
-// -------- SMART EXTRACTION --------
-function extractFinancialData(lines) {
+// ---------------- SMART EXTRACTION ----------------
+function extractFinancials(lines){
   const patterns = {
-    revenue: /revenue|total sales/i,
+    revenue: /revenue|sales/i,
     cogs: /cost of goods|cogs/i,
-    expenses: /operating expenses|total expenses/i,
-    netIncome: /net income|net profit/i,
-    grossProfit: /gross profit/i
+    opex: /operating expense/i,
+    netIncome: /net income|profit/i,
+    ebitda: /ebitda/i,
+    assets: /total assets/i,
+    liabilities: /total liabilities/i,
+    equity: /equity/i
   };
 
-  let data = {};
+  let data={};
 
-  lines.forEach(line => {
-    const value = extractNumber(line);
-    if (value === null) return;
+  lines.forEach(line=>{
+    const num = extractNumber(line);
+    if(num===null) return;
 
-    for (let key in patterns) {
-      if (patterns[key].test(line)) {
-        data[key] = value;
+    for(let key in patterns){
+      if(patterns[key].test(line)){
+        data[key]=num;
       }
     }
   });
@@ -166,54 +141,106 @@ function extractFinancialData(lines) {
   return data;
 }
 
-// -------- NUMBER PARSER --------
-function extractNumber(text) {
+// ---------------- NUMBER PARSER ----------------
+function extractNumber(text){
   const match = text.match(/-?\$?\(?\d{1,3}(,\d{3})*(\.\d+)?\)?/);
-  if (!match) return null;
+  if(!match) return null;
 
-  let num = match[0]
-    .replace(/[$,]/g, "")
-    .replace("(", "-")
-    .replace(")", "");
+  let n = match[0]
+    .replace(/[$,]/g,"")
+    .replace("(","-")
+    .replace(")","");
 
-  return parseFloat(num);
+  return parseFloat(n);
 }
 
-// -------- KPI CALCULATIONS --------
-function calculateKPIs(data) {
-  const revenue = data.revenue || 0;
-  const expenses = data.expenses || 0;
-  const netIncome = data.netIncome || (revenue - expenses);
+// ---------------- KPI ENGINE ----------------
+function computeKPIs(d){
+  const revenue = d.revenue||0;
+  const cogs = d.cogs||0;
+  const opex = d.opex||0;
 
-  const profitMargin = revenue ? (netIncome / revenue) * 100 : 0;
+  const grossProfit = revenue - cogs;
+  const ebitda = d.ebitda || (grossProfit - opex);
+  const netIncome = d.netIncome || (ebitda);
 
   return {
     revenue,
-    expenses,
+    grossProfit,
+    ebitda,
     netIncome,
-    profitMargin: profitMargin.toFixed(2)
+    grossMargin: revenue ? (grossProfit/revenue)*100 : 0,
+    ebitdaMargin: revenue ? (ebitda/revenue)*100 : 0,
+    netMargin: revenue ? (netIncome/revenue)*100 : 0
   };
 }
 
-// -------- DISPLAY --------
-function display(data, kpis) {
-  let html = "<h3>Extracted Financials</h3><ul>";
+// ---------------- ANOMALY DETECTION ----------------
+function detectAnomalies(d,k){
+  let issues=[];
 
-  for (let key in data) {
-    html += `<li><b>${key}</b>: $${data[key]}</li>`;
+  if(k.grossMargin < 0)
+    issues.push("Negative gross margin → possible pricing or cost issue");
+
+  if(k.ebitdaMargin > 60)
+    issues.push("Unusually high EBITDA margin");
+
+  if(k.netMargin < 0)
+    issues.push("Company is losing money");
+
+  if(d.assets && d.liabilities && d.liabilities > d.assets)
+    issues.push("Liabilities exceed assets → solvency risk");
+
+  if(k.revenue && k.ebitda > k.revenue)
+    issues.push("EBITDA exceeds revenue → data inconsistency");
+
+  return issues;
+}
+
+// ---------------- INSIGHT GENERATION ----------------
+function generateInsights(d,k,issues){
+  let insights=[];
+
+  if(k.ebitdaMargin > 25)
+    insights.push("Strong operational profitability");
+
+  if(k.netMargin < 10)
+    insights.push("Low bottom-line efficiency");
+
+  if(issues.length>0)
+    insights.push("Financial irregularities detected requiring review");
+
+  if(d.assets && d.liabilities){
+    if(d.assets > d.liabilities)
+      insights.push("Balance sheet appears stable");
+    else
+      insights.push("Balance sheet risk detected");
   }
 
-  html += "</ul>";
+  return insights;
+}
 
-  html += "<h3>KPIs</h3>";
-  html += `
-    <ul>
-      <li>Revenue: $${kpis.revenue}</li>
-      <li>Expenses: $${kpis.expenses}</li>
-      <li>Net Income: $${kpis.netIncome}</li>
-      <li>Profit Margin: ${kpis.profitMargin}%</li>
-    </ul>
-  `;
+// ---------------- RENDER ----------------
+function render(d,k,issues,insights){
+  let html = "<h3>Financial Data</h3><ul>";
+  for(let key in d){
+    html+=`<li><b>${key}</b>: $${d[key]}</li>`;
+  }
+  html+="</ul>";
+
+  html+="<h3>KPIs</h3><ul>";
+  for(let key in k){
+    html+=`<li>${key}: ${typeof k[key]==="number" ? k[key].toFixed(2) : k[key]}</li>`;
+  }
+  html+="</ul>";
+
+  html+="<h3>Anomalies</h3><ul>";
+  issues.forEach(i=> html+=`<li>${i}</li>`);
+  html+="</ul>";
+
+  html+="<h3>Insights</h3><ul>";
+  insights.forEach(i=> html+=`<li>${i}</li>`);
+  html+="</ul>";
 
   resultsDiv.innerHTML = html;
 }
