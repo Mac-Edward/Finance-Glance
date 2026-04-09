@@ -1,0 +1,178 @@
+# Finance-Glance
+# FinLens
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Financial Statement Analyzer</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f7fa;
+      margin: 0;
+      padding: 0;
+      text-align: center;
+    }
+    h1 {
+      background: #1f2937;
+      color: white;
+      padding: 20px;
+      margin: 0;
+    }
+    #dropZone {
+      border: 2px dashed #3b82f6;
+      border-radius: 10px;
+      padding: 40px;
+      margin: 40px auto;
+      width: 60%;
+      background: white;
+      cursor: pointer;
+    }
+    #dropZone.hover {
+      background: #e0f2fe;
+    }
+    #output {
+      width: 80%;
+      margin: 20px auto;
+      text-align: left;
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+    }
+    th {
+      background: #3b82f6;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Financial Statement Analyzer</h1>
+
+<div id="dropZone">Drag & Drop Financial Files Here (CSV or TXT)</div>
+
+<div id="output">
+  <h2>Extracted Data & KPIs</h2>
+  <div id="results"></div>
+</div>
+
+<script>
+const dropZone = document.getElementById("dropZone");
+const resultsDiv = document.getElementById("results");
+
+dropZone.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  dropZone.classList.add("hover");
+});
+
+dropZone.addEventListener("dragleave", () => {
+  dropZone.classList.remove("hover");
+});
+
+dropZone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  dropZone.classList.remove("hover");
+
+  const files = e.dataTransfer.files;
+  if (files.length > 0) {
+    handleFile(files[0]);
+  }
+});
+
+function handleFile(file) {
+  const reader = new FileReader();
+
+  reader.onload = function(e) {
+    const text = e.target.result;
+    const data = parseCSV(text);
+    const kpis = calculateKPIs(data);
+    displayResults(data, kpis);
+  };
+
+  reader.readAsText(file);
+}
+
+function parseCSV(text) {
+  const lines = text.split("\n").filter(l => l.trim() !== "");
+  const headers = lines[0].split(",").map(h => h.trim());
+
+  const rows = lines.slice(1).map(line => {
+    const values = line.split(",");
+    let obj = {};
+    headers.forEach((h, i) => {
+      obj[h] = parseFloat(values[i]) || values[i];
+    });
+    return obj;
+  });
+
+  return rows;
+}
+
+function calculateKPIs(data) {
+  let revenue = 0;
+  let expenses = 0;
+  let netIncome = 0;
+
+  data.forEach(row => {
+    if (row.Revenue) revenue += row.Revenue;
+    if (row.Expenses) expenses += row.Expenses;
+  });
+
+  netIncome = revenue - expenses;
+
+  let profitMargin = revenue ? (netIncome / revenue) * 100 : 0;
+
+  return {
+    revenue,
+    expenses,
+    netIncome,
+    profitMargin: profitMargin.toFixed(2)
+  };
+}
+
+function displayResults(data, kpis) {
+  let html = "<h3>KPIs</h3>";
+  html += `
+    <table>
+      <tr><th>Metric</th><th>Value</th></tr>
+      <tr><td>Total Revenue</td><td>$${kpis.revenue.toFixed(2)}</td></tr>
+      <tr><td>Total Expenses</td><td>$${kpis.expenses.toFixed(2)}</td></tr>
+      <tr><td>Net Income</td><td>$${kpis.netIncome.toFixed(2)}</td></tr>
+      <tr><td>Profit Margin</td><td>${kpis.profitMargin}%</td></tr>
+    </table>
+  `;
+
+  html += "<h3>Raw Data</h3><table><tr>";
+
+  Object.keys(data[0]).forEach(key => {
+    html += `<th>${key}</th>`;
+  });
+
+  html += "</tr>";
+
+  data.forEach(row => {
+    html += "<tr>";
+    Object.values(row).forEach(val => {
+      html += `<td>${val}</td>`;
+    });
+    html += "</tr>";
+  });
+
+  html += "</table>";
+
+  resultsDiv.innerHTML = html;
+}
+</script>
+
+</body>
+</html>
+```
