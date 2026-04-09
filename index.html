@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Financial Statement Analyzer</title>
+  <title>Financial Statement Analyzer (PDF समर्थ)</title>
+
+  <!-- PDF.js CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -53,9 +57,9 @@
 </head>
 <body>
 
-<h1>Financial Statement Analyzer</h1>
+<h1>Financial Statement Analyzer (CSV + PDF)</h1>
 
-<div id="dropZone">Drag & Drop Financial Files Here (CSV or TXT)</div>
+<div id="dropZone">Drag & Drop CSV, TXT, or PDF Files Here</div>
 
 <div id="output">
   <h2>Extracted Data & KPIs</h2>
@@ -79,71 +83,103 @@ dropZone.addEventListener("drop", (e) => {
   e.preventDefault();
   dropZone.classList.remove("hover");
 
-  const files = e.dataTransfer.files;
-  if (files.length > 0) {
-    handleFile(files[0]);
+  const file = e.dataTransfer.files[0];
+  if (!file) return;
+
+  if (file.type === "application/pdf") {
+    handlePDF(file);
+  } else {
+    handleTextFile(file);
   }
 });
 
-function handleFile(file) {
+async function handlePDF(file) {
+  const reader = new FileReader();
+
+  reader.onload = async function(e) {
+    const typedarray = new Uint8Array(e.target.result);
+
+    const pdf = await pdfjsLib.getDocument(typedarray).promise;
+
+    let allText = "";
+
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+
+      const strings = content.items.map(item => item.str);
+      const pageText = strings.join(" ");
+
+      // Only include financial pages
+      if (isFinancialPage(pageText)) {
+        allText += pageText + "\n";
+      }
+    }
+
+    processExtractedText(allText);
+  };
+
+  reader.readAsArrayBuffer(file);
+}
+
+function handleTextFile(file) {
   const reader = new FileReader();
 
   reader.onload = function(e) {
-    const text = e.target.result;
-
-    // Split into "pages" (basic heuristic for TXT/CSV dumps)
-    const pages = text.split(/\f|\n\s*\n\s*\n/);
-
-    let validData = [];
-
-    pages.forEach(page => {
-      if (isFinancialPage(page)) {
-        const parsed = parseCSV(page);
-        if (parsed.length > 0) {
-          validData = validData.concat(parsed);
-        }
-      }
-    });
-
-    if (validData.length === 0) {
-      resultsDiv.innerHTML = "<p>No usable financial data detected.</p>";
-      return;
-    }
-
-    const kpis = calculateKPIs(validData);
-    displayResults(validData, kpis);
+    processExtractedText(e.target.result);
   };
 
   reader.readAsText(file);
 }
 
-// 🔍 Detect if a page likely contains financial data
+function processExtractedText(text) {
+  const pages = text.split(/\f|\n\s*\n\s*\n/);
+
+  let validData = [];
+
+  pages.forEach(page => {
+    if (isFinancialPage(page)) {
+      const parsed = parseCSV(page);
+      if (parsed.length > 0) {
+        validData = validData.concat(parsed);
+      }
+    }
+  });
+
+  if (validData.length === 0) {
+    resultsDiv.innerHTML = "<p>No usable financial data detected.</p>";
+    return;
+  }
+
+  const kpis = calculateKPIs(validData);
+  displayResults(validData, kpis);
+}
+
+// Detect financial relevance
 function isFinancialPage(text) {
   const keywords = [
-    "revenue", "sales", "income",
-    "expenses", "cost", "net income",
-    "profit", "loss"
+    "revenue","sales","income",
+    "expenses","cost","net income",
+    "profit","loss"
   ];
 
   const hasKeyword = keywords.some(k =>
     text.toLowerCase().includes(k)
   );
 
-  // Check for presence of numbers (financial data)
   const hasNumbers = /\d/.test(text);
 
   return hasKeyword && hasNumbers;
 }
 
+// Basic extraction (works best if PDF resembles tabular data)
 function parseCSV(text) {
   const lines = text.split("\n").filter(l => l.trim() !== "");
 
-  // Require at least header + 1 row
   if (lines.length < 2) return [];
 
-  const headers = lines[0].split(",").map(h => h.trim());
+  const headers = lines[0].split(/,|\s{2,}/).map(h => h.trim());
 
-  // Must contain at least one financial column
   const validHeaders = headers.some(h =>
     ["revenue","expenses","income","cost","profit"]
       .includes(h.toLowerCase())
@@ -152,7 +188,7 @@ function parseCSV(text) {
   if (!validHeaders) return [];
 
   const rows = lines.slice(1).map(line => {
-    const values = line.split(",");
+    const values = line.split(/,|\s{2,}/);
     let obj = {};
     headers.forEach((h, i) => {
       const val = values[i];
